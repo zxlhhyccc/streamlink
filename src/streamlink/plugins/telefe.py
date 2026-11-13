@@ -1,51 +1,87 @@
-import logging
+"""
+$description Video content from Telefe, an Argentine TV station.
+$url mitelefe.com
+$type live
+$metadata title
+$region Argentina
+"""
+
 import re
+from urllib.parse import urlparse
 
+from streamlink.logger import getLogger
 from streamlink.plugin import Plugin, pluginmatcher
-from streamlink.plugin.api import useragents
+from streamlink.plugin.api import validate
 from streamlink.stream.hls import HLSStream
-from streamlink.stream.http import HTTPStream
-from streamlink.utils.parse import parse_json
-
-log = logging.getLogger(__name__)
 
 
-@pluginmatcher(re.compile(
-    r'https?://telefe\.com/.+'
-))
+log = getLogger(__name__)
+
+
+@pluginmatcher(re.compile(r"https://mitelefe\.com/(?:telefe-en-)?vivo"))
 class Telefe(Plugin):
+    _URL_TOKENIZE = "https://mitelefe.com/vidya/tokenize"
+
     def _get_streams(self):
-        res = self.session.http.get(self.url, headers={'User-Agent': useragents.CHROME})
-        video_search = res.text
-        video_search = video_search[video_search.index('{"top":{"view":"PlayerContainer","model":{'):]
-        video_search = video_search[: video_search.index('}]}}') + 4] + "}"
+        self.title, stream_url = self.session.http.get(
+            self.url,
+            schema=validate.Schema(
+                validate.parse_html(),
+                validate.union((
+                    validate.xml_xpath_string(".//meta[@property='og:title'][@content][1]/@content"),
+                    validate.all(
+                        validate.xml_xpath_string(".//*[@data-player-url][1]/@data-player-url"),
+                        validate.none_or_all(
+                            validate.url(),
+                        ),
+                    ),
+                )),
+            ),
+        )
+        if not stream_url:
+            log.error("Could not find stream URL")
+            return None
 
-        video_url_found_hls = ""
-        video_url_found_http = ""
+        parsed = urlparse(stream_url)
+        netloc = parsed.netloc.removeprefix("www.")
+        if netloc in ("youtube.com", "youtu.be", "dailymotion.com"):
+            return self.session.streams(stream_url)
 
-        json_video_search = parse_json(video_search)
-        json_video_search_sources = json_video_search["top"]["model"]["videos"][0]["sources"]
-        log.debug('Video ID found: {0}'.format(json_video_search["top"]["model"]["id"]))
-        for current_video_source in json_video_search_sources:
-            if "HLS" in current_video_source["type"]:
-                video_url_found_hls = "http://telefe.com" + current_video_source["url"]
-                log.debug("HLS content available")
-            if "HTTP" in current_video_source["type"]:
-                video_url_found_http = "http://telefe.com" + current_video_source["url"]
-                log.debug("HTTP content available")
-
-        self.session.http.headers = {
-            'Referer': self.url,
-            'User-Agent': useragents.CHROME,
-            'X-Requested-With': 'ShockwaveFlash/25.0.0.148'
+        headers = {
+            "Origin": "https://mitelefe.com",
+            "Referer": self.url,
         }
 
-        if video_url_found_hls:
-            hls_streams = HLSStream.parse_variant_playlist(self.session, video_url_found_hls)
-            yield from hls_streams.items()
+        hls_url = self.session.http.post(
+            self._URL_TOKENIZE,
+            headers={
+                "Content-Type": "application/json",
+                **headers,
+            },
+            json={
+                "url": stream_url,
+            },
+            schema=validate.Schema(
+                validate.parse_json(),
+                validate.any(
+                    validate.all(
+                        {
+                            "url": validate.url(path=validate.endswith(".m3u8")),
+                        },
+                        validate.get("url"),
+                    ),
+                    validate.all(
+                        str,
+                        validate.url(path=validate.endswith(".m3u8")),
+                    ),
+                ),
+            ),
+        )
+        if self.session.http.head(hls_url, raise_for_status=False).status_code >= 400:
+            log.error("Access restricted")
+            return None
 
-        if video_url_found_http:
-            yield "http", HTTPStream(self.session, video_url_found_http)
+        return HLSStream.parse_variant_playlist(self.session, hls_url, headers=headers)
 
 
 __plugin__ = Telefe

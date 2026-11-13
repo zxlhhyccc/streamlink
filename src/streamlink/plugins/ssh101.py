@@ -1,22 +1,32 @@
-import logging
+"""
+$description Global live-streaming platform.
+$url ssh101.com
+$type live
+"""
+
 import re
 
+from streamlink.logger import getLogger
 from streamlink.plugin import Plugin, pluginmatcher
 from streamlink.plugin.api import validate
-from streamlink.stream import HLSStream
-
-log = logging.getLogger(__name__)
+from streamlink.stream.hls import HLSStream
 
 
-@pluginmatcher(re.compile(
-    r"https?://(?:www\.)?ssh101\.com/(?:(?:secure)?live/|detail\.php\?id=\w+)"
-))
+log = getLogger(__name__)
+
+
+@pluginmatcher(
+    re.compile(r"https?://(?:www\.)?ssh101\.com/(?:(?:secure)?live/|detail\.php\?id=\w+)"),
+)
 class SSH101(Plugin):
     def _get_streams(self):
-        hls_url = self.session.http.get(self.url, schema=validate.Schema(
-            validate.parse_html(),
-            validate.xml_xpath_string(".//source[contains(@src,'.m3u8')]/@src"),
-        ))
+        hls_url = self.session.http.get(
+            self.url,
+            schema=validate.Schema(
+                re.compile(r"src:\s*(?P<q>['\"])(?P<url>https://\S+\.m3u8)(?P=q)"),
+                validate.any(None, validate.get("url")),
+            ),
+        )
         if not hls_url:
             return
 
@@ -25,7 +35,7 @@ class SSH101(Plugin):
             log.error("This stream is currently offline")
             return
 
-        return {"live": HLSStream(self.session, hls_url)}
+        return HLSStream.parse_variant_playlist(self.session, hls_url)
 
 
 __plugin__ = SSH101

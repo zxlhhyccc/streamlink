@@ -1,15 +1,35 @@
-import logging
+"""
+$description Television channel dedicated to electronic music, DJs and dance music culture.
+$url clubbingtv.com
+$type live, vod
+$account Login required
+"""
+
 import re
 
-from streamlink.plugin import Plugin, PluginArgument, PluginArguments, pluginmatcher
+from streamlink.logger import getLogger
+from streamlink.plugin import Plugin, pluginargument, pluginmatcher
 from streamlink.stream.hls import HLSStream
 
-log = logging.getLogger(__name__)
+
+log = getLogger(__name__)
 
 
-@pluginmatcher(re.compile(
-    r"https?://(www\.)?clubbingtv\.com/"
-))
+@pluginmatcher(
+    re.compile(r"https?://(www\.)?clubbingtv\.com/"),
+)
+@pluginargument(
+    "username",
+    required=True,
+    requires=["password"],
+    help="The username used to register with Clubbing TV.",
+)
+@pluginargument(
+    "password",
+    required=True,
+    sensitive=True,
+    help="A Clubbing TV account password to use with --clubbingtv-username.",
+)
 class ClubbingTV(Plugin):
     _login_url = "https://www.clubbingtv.com/user/login"
 
@@ -18,21 +38,6 @@ class ClubbingTV(Plugin):
         re.DOTALL,
     )
     _vod_re = re.compile(r'<iframe src="(?P<stream_url>.+?)"')
-
-    arguments = PluginArguments(
-        PluginArgument(
-            "username",
-            required=True,
-            requires=["password"],
-            help="The username used to register with Clubbing TV.",
-        ),
-        PluginArgument(
-            "password",
-            required=True,
-            sensitive=True,
-            help="A Clubbing TV account password to use with --clubbingtv-username.",
-        ),
-    )
 
     def login(self):
         username = self.get_option("username")
@@ -44,7 +49,7 @@ class ClubbingTV(Plugin):
 
         if "Invalid Email/User Name" in res.text:
             log.error(
-                "Failed to login to Clubbing TV, incorrect email/password combination"
+                "Failed to login to Clubbing TV, incorrect email/password combination",
             )
             return False
 
@@ -66,7 +71,7 @@ class ClubbingTV(Plugin):
 
         stream_url = match.group("stream_url")
         log.info(
-            "Fetching external stream from URL {0}".format(stream_url)
+            f"Fetching external stream from URL {stream_url}",
         )
         return self.session.streams(stream_url)
 

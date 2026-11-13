@@ -1,5 +1,11 @@
+from __future__ import annotations
+
 from string import Formatter as StringFormatter
-from typing import Any, Callable, Dict, Optional
+from typing import TYPE_CHECKING, Any
+
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 # we only need string.Formatter for calling its parse() method, which returns `_string.formatter_parser(string)`.
@@ -11,13 +17,17 @@ def _identity(obj):
 
 
 class Formatter:
-    def __init__(self, mapping: Dict[str, Callable], formatting: Optional[Dict[str, Callable]] = None):
+    def __init__(
+        self,
+        mapping: dict[str, Callable[[], Any]],
+        formatting: dict[str, Callable[[Any, str], Any]] | None = None,
+    ):
         super().__init__()
-        self.mapping = mapping
-        self.formatting = formatting or {}
-        self.cache = {}
+        self.mapping: dict[str, Callable[[], Any]] = mapping
+        self.formatting: dict[str, Callable[[Any, str], Any]] = formatting or {}
+        self.cache: dict[str, Any] = {}
 
-    def _get_value(self, field_name: str, format_spec: str, defaults: Dict[str, str]) -> Any:
+    def _get_value(self, field_name: str, format_spec: str | None, defaults: dict[str, str]) -> Any:
         if field_name not in self.mapping:
             return defaults.get(field_name, f"{{{field_name}}}" if not format_spec else f"{{{field_name}:{format_spec}}}")
 
@@ -39,10 +49,10 @@ class Formatter:
 
         return value
 
-    def _format(self, string: str, mapper: Callable[[str], str], defaults: Dict[str, str]) -> str:
+    def _format(self, string: str, mapper: Callable[[str], str], defaults: dict[str, str]) -> str:
         result = []
 
-        for literal_text, field_name, format_spec, conversion in _stringformatter.parse(string):
+        for literal_text, field_name, format_spec, _conversion in _stringformatter.parse(string):
             if literal_text:
                 result.append(literal_text)
 
@@ -54,5 +64,5 @@ class Formatter:
 
         return "".join(result)
 
-    def format(self, title: str, defaults: Optional[Dict[str, str]] = None) -> str:
-        return self._format(title, _identity, defaults or {})
+    def format(self, string: str, defaults: dict[str, str] | None = None) -> str:
+        return self._format(string, _identity, defaults or {})

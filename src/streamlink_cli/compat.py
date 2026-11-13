@@ -1,17 +1,19 @@
-import os
 import sys
-from pathlib import Path
+from os import devnull
 from typing import BinaryIO
 
 
-is_darwin = sys.platform == "darwin"
-is_win32 = os.name == "nt"
+try:
+    stdout: BinaryIO = sys.stdout.buffer
+except AttributeError:  # pragma: no cover
+    from atexit import register as _atexit_register
+    from pathlib import Path
 
-stdout: BinaryIO = sys.stdout.buffer
+    stdout = Path(devnull).open("wb")  # ruff: ignore[open-file-with-context-handler]
+    _atexit_register(stdout.close)
+    del _atexit_register
 
 
-class DeprecatedPath(type(Path())):
-    pass
-
-
-__all__ = ["is_darwin", "is_win32", "stdout", "DeprecatedPath"]
+__all__ = [
+    "stdout",
+]

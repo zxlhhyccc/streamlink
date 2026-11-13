@@ -1,36 +1,73 @@
-import unittest
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
 from unittest.mock import ANY, MagicMock
 
-from streamlink import Streamlink
 from streamlink.plugins.ustreamtv import UStreamTV
 from tests.plugins import PluginCanHandleUrl
+
+
+if TYPE_CHECKING:
+    from streamlink import Streamlink
 
 
 class TestPluginCanHandleUrlUStreamTV(PluginCanHandleUrl):
     __plugin__ = UStreamTV
 
-    should_match = [
-        "http://www.ustream.tv/streamlink",
-        "http://www.ustream.tv/channel/id/1234",
-        "http://www.ustream.tv/embed/1234",
-        "http://www.ustream.tv/recorded/6543",
-        "http://www.ustream.tv/embed/recorded/6543",
-        "https://video.ibm.com/channel/H5rQLwmTGrW",
-        "https://video.ibm.com/recorded/124680279",
+    should_match_groups = [
+        (
+            "https://www.ustream.tv/nasahdtv",
+            {},
+        ),
+        (
+            "https://www.ustream.tv/channel/6540154",
+            {"channel_id": "6540154"},
+        ),
+        (
+            "https://www.ustream.tv/channel/id/6540154",
+            {"channel_id": "6540154"},
+        ),
+        (
+            "https://www.ustream.tv/embed/6540154",
+            {"channel_id": "6540154"},
+        ),
+        (
+            "https://www.ustream.tv/recorded/132041157",
+            {"video_id": "132041157"},
+        ),
+        (
+            "https://www.ustream.tv/embed/recorded/132041157",
+            {"video_id": "132041157"},
+        ),
+        (
+            "https://www.ustream.tv/combined-embed/6540154",
+            {"combined_channel_id": "6540154"},
+        ),
+        (
+            "https://www.ustream.tv/combined-embed/6540154/video/132041157",
+            {"combined_channel_id": "6540154", "combined_video_id": "132041157"},
+        ),
+        (
+            "https://video.ibm.com/nasahdtv",
+            {},
+        ),
+        (
+            "https://video.ibm.com/recorded/132041157",
+            {"video_id": "132041157"},
+        ),
     ]
 
 
-class TestPluginUStreamTV(unittest.TestCase):
-    def test_arguments(self):
-        from streamlink_cli.main import setup_plugin_args
-        session = Streamlink()
-        parser = MagicMock()
-        group = parser.add_argument_group("Plugin Options").add_argument_group("UStreamTV")
+class TestPluginUStreamTV:
+    def test_arguments(self, session: Streamlink):
+        from streamlink_cli.main import setup_plugin_args  # ruff: ignore[import-outside-top-level]
 
-        session.plugins = {
-            'ustreamtv': UStreamTV
-        }
+        parser = MagicMock()
+        plugins = parser.add_argument_group("Plugin Options")
+        group = parser.add_argument_group("UStreamTV", parent=plugins)
+
+        session.plugins["ustreamtv"] = UStreamTV
 
         setup_plugin_args(session, parser)
 
-        group.add_argument.assert_called_with('--ustream-password', metavar="PASSWORD", help=ANY)
+        group.add_argument.assert_called_with("--ustream-password", metavar="PASSWORD", help=ANY)

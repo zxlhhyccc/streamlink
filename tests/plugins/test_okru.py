@@ -6,8 +6,10 @@ class TestPluginCanHandleUrlOKru(PluginCanHandleUrl):
     __plugin__ = OKru
 
     should_match = [
-        'https://ok.ru/live/12345',
-        'http://ok.ru/live/12345',
-        'http://www.ok.ru/live/12345',
-        'https://ok.ru/video/266205792931',
+        ("default", "https://ok.ru/live/ID"),
+        ("default", "https://ok.ru/video/ID"),
+        ("default", "https://ok.ru/videoembed/ID"),
+        ("default", "https://www.ok.ru/video/ID"),
+        ("mobile", "https://m.ok.ru/video/ID"),
+        ("mobile", "https://mobile.ok.ru/video/ID"),
     ]

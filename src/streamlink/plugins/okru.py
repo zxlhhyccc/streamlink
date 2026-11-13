@@ -1,19 +1,36 @@
-import logging
+"""
+$description Russian live-streaming and video hosting social platform.
+$url ok.ru
+$url mobile.ok.ru
+$type live, vod
+$metadata id
+$metadata author
+$metadata title
+"""
+
 import re
 from urllib.parse import unquote
 
-from streamlink.plugin import Plugin, PluginError, pluginmatcher
+from streamlink.exceptions import NoStreamsError
+from streamlink.logger import getLogger
+from streamlink.plugin import Plugin, pluginmatcher
 from streamlink.plugin.api import validate
 from streamlink.stream.dash import DASHStream
 from streamlink.stream.hls import HLSStream
 from streamlink.stream.http import HTTPStream
 
-log = logging.getLogger(__name__)
+
+log = getLogger(__name__)
 
 
-@pluginmatcher(re.compile(
-    r'https?://(?:www\.)?ok\.ru/'
-))
+@pluginmatcher(
+    name="default",
+    pattern=re.compile(r"https?://(?:www\.)?ok\.ru/"),
+)
+@pluginmatcher(
+    name="mobile",
+    pattern=re.compile(r"https?://m(?:obile)?\.ok\.ru/"),
+)
 class OKru(Plugin):
     QUALITY_WEIGHTS = {
         "full": 1080,
@@ -29,67 +46,91 @@ class OKru(Plugin):
     }
 
     @classmethod
-    def stream_weight(cls, key):
-        weight = cls.QUALITY_WEIGHTS.get(key)
+    def stream_weight(cls, stream: str) -> tuple[float, str]:
+        weight = cls.QUALITY_WEIGHTS.get(stream)
         if weight:
             return weight, "okru"
 
-        return super().stream_weight(key)
+        return super().stream_weight(stream)
+
+    def _canonicalize_mobile_url(self):
+        url = self.session.http.get(
+            self.url,
+            schema=validate.Schema(
+                validate.parse_html(),
+                validate.xml_xpath_string(".//head/link[@rel='canonical'][@href][1]/@href"),
+                validate.none_or_all(
+                    validate.url(),
+                ),
+            ),
+        )
+        if not url or not self.matchers["default"].pattern.match(url):
+            raise NoStreamsError
+
+        self.url = url
 
     def _get_streams(self):
+        if self.matches["mobile"]:
+            self._canonicalize_mobile_url()
+
         schema_metadata = validate.Schema(
-            validate.parse_json(),
             {
-                validate.optional("author"): validate.all({"name": str}, validate.get("name")),
-                validate.optional("movie"): validate.all({"title": str}, validate.get("title")),
+                validate.optional("author"): validate.all({validate.optional("name"): str}, validate.get("name")),
+                validate.optional("compilationTitle"): str,
+                validate.optional("movie"): validate.all(
+                    {
+                        validate.optional("id"): str,
+                        validate.optional("title"): str,
+                    },
+                    validate.union_get("id", "title"),
+                ),
                 validate.optional("hlsManifestUrl"): validate.url(),
                 validate.optional("hlsMasterPlaylistUrl"): validate.url(),
                 validate.optional("liveDashManifestUrl"): validate.url(),
-                validate.optional("videos"): [validate.all(
-                    {
-                        "name": str,
-                        "url": validate.url()
-                    },
-                    validate.union_get("name", "url")
-                )]
-            }
+                validate.optional("videos"): [
+                    validate.all(
+                        {
+                            "name": str,
+                            "url": validate.url(),
+                        },
+                        validate.union_get("name", "url"),
+                    ),
+                ],
+            },
         )
 
-        try:
-            metadata, metadata_url = self.session.http.get(self.url, schema=validate.Schema(
+        metadata, metadata_url = self.session.http.get(
+            self.url,
+            schema=validate.Schema(
                 validate.parse_html(),
                 validate.xml_find(".//*[@data-options]"),
                 validate.get("data-options"),
                 validate.parse_json(),
-                {"flashvars": {
-                    validate.optional("metadata"): str,
-                    validate.optional("metadataUrl"): validate.all(
-                        validate.transform(unquote),
-                        validate.url()
-                    )
-                }},
+                {
+                    "flashvars": {
+                        validate.optional("metadata"): dict,
+                        validate.optional("metadataUrl"): validate.all(
+                            validate.transform(unquote),
+                            validate.url(),
+                        ),
+                    },
+                },
                 validate.get("flashvars"),
-                validate.union_get("metadata", "metadataUrl")
-            ))
-        except PluginError:
-            log.error("Could not find metadata")
-            return
+                validate.union_get("metadata", "metadataUrl"),
+            ),
+        )
 
         self.session.http.headers.update({"Referer": self.url})
 
         if not metadata and metadata_url:
             metadata = self.session.http.post(metadata_url).text
 
-        log.trace(f"{metadata!r}")
+        log.trace("%r", metadata)
 
-        try:
-            data = schema_metadata.validate(metadata)
-        except PluginError:
-            log.error("Could not parse metadata")
-            return
+        data = schema_metadata.validate(metadata)
 
-        self.author = data.get("author")
-        self.title = data.get("movie")
+        self.author = data.get("author") or data.get("compilationTitle")
+        self.id, self.title = data.get("movie", (None, None))
 
         for hls_url in data.get("hlsManifestUrl"), data.get("hlsMasterPlaylistUrl"):
             if hls_url is not None:

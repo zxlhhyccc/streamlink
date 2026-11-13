@@ -1,29 +1,48 @@
+"""
+$description Live streaming video game broadcasts from the Steam gaming community.
+$url steamcommunity.com
+$url steam.tv
+$type live
+$account Some streams require a login
+"""
+
 import base64
-import logging
 import re
 import time
 
-from Crypto.Cipher import PKCS1_v1_5
-from Crypto.PublicKey import RSA
-
 from streamlink.exceptions import FatalPluginError
-from streamlink.plugin import Plugin, PluginArgument, PluginArguments, pluginmatcher
+from streamlink.logger import getLogger
+from streamlink.plugin import Plugin, pluginargument, pluginmatcher
 from streamlink.plugin.api import validate
 from streamlink.stream.dash import DASHStream
+from streamlink.utils.crypto import RSA, PKCS1_v1_5
 
-log = logging.getLogger(__name__)
+
+log = getLogger(__name__)
 
 
 class SteamLoginFailed(Exception):
     pass
 
 
-@pluginmatcher(re.compile(
-    r"https?://steamcommunity\.com/broadcast/watch/(\d+)"
-))
-@pluginmatcher(re.compile(
-    r"https?://steam\.tv/(\w+)"
-))
+@pluginmatcher(
+    re.compile(r"https?://steamcommunity\.com/broadcast/watch/(\d+)"),
+)
+@pluginmatcher(
+    re.compile(r"https?://steam\.tv/(\w+)"),
+)
+@pluginargument(
+    "email",
+    requires=["password"],
+    metavar="EMAIL",
+    help="A Steam account email address to access friends/private streams",
+)
+@pluginargument(
+    "password",
+    sensitive=True,
+    metavar="PASSWORD",
+    help="A Steam account password to use with --steam-email.",
+)
 class SteamBroadcastPlugin(Plugin):
     _watch_broadcast_url = "https://steamcommunity.com/broadcast/watch/{steamid}"
     _get_broadcast_url = "https://steamcommunity.com/broadcast/getbroadcastmpd/"
@@ -31,27 +50,13 @@ class SteamBroadcastPlugin(Plugin):
     _dologin_url = "https://steamcommunity.com/login/dologin/"
     _captcha_url = "https://steamcommunity.com/public/captcha.php?gid={}"
 
-    arguments = PluginArguments(
-        PluginArgument(
-            "email",
-            metavar="EMAIL",
-            requires=["password"],
-            help="""
-            A Steam account email address to access friends/private streams
-            """
-        ),
-        PluginArgument(
-            "password",
-            metavar="PASSWORD",
-            sensitive=True,
-            help="""
-            A Steam account password to use with --steam-email.
-            """
-        ))
+    @property
+    def donotcache(self):
+        return str(int(time.time() * 1000))
 
     def encrypt_password(self, email, password):
         """
-        Get the RSA key for the user and encrypt the users password
+        Get the RSA key for the user and encrypt the user's password
         :param email: steam account
         :param password: password for account
         :return: encrypted password
@@ -60,7 +65,7 @@ class SteamBroadcastPlugin(Plugin):
             self._get_rsa_key_url,
             params=dict(
                 username=email,
-                donotcache=str(int(time.time() * 1000))
+                donotcache=self.donotcache,
             ),
             schema=validate.Schema(
                 validate.parse_json(),
@@ -69,9 +74,9 @@ class SteamBroadcastPlugin(Plugin):
                     "publickey_mod": validate.all(str, validate.transform(lambda x: int(x, 16))),
                     "success": True,
                     "timestamp": str,
-                    "token_gid": str
-                }
-            )
+                    "token_gid": str,
+                },
+            ),
         )
 
         rsa = RSA.construct((rsadata["publickey_mod"], rsadata["publickey_exp"]))
@@ -92,7 +97,7 @@ class SteamBroadcastPlugin(Plugin):
             "rsatimestamp": rsatimestamp,
             "remember_login": True,
             "donotcache": self.donotcache,
-            "twofactorcode": twofactorcode
+            "twofactorcode": twofactorcode,
         }
 
         resp = self.session.http.post(
@@ -109,9 +114,9 @@ class SteamBroadcastPlugin(Plugin):
                     validate.optional("emailsteamid"): str,
                     validate.optional("login_complete"): bool,
                     validate.optional("captcha_needed"): bool,
-                    validate.optional("captcha_gid"): validate.any(str, int)
-                }
-            )
+                    validate.optional("captcha_gid"): validate.any(str, int),
+                },
+            ),
         )
 
         if resp.get("login_complete"):
@@ -130,7 +135,7 @@ class SteamBroadcastPlugin(Plugin):
                 if not captcha_text:
                     return False
             else:
-                # If the user must enter the code that was emailed to them
+                # Whether the user must enter the code that was emailed to them
                 if resp.get("emailauth_needed"):
                     if emailauth:
                         raise SteamLoginFailed("Email auth key error")
@@ -141,7 +146,7 @@ class SteamBroadcastPlugin(Plugin):
                     if not emailauth:
                         return False
 
-                # If the user must enter a two factor auth code
+                # Whether the user must enter a two-factor auth code
                 if resp.get("requires_twofactor"):
                     try:
                         twofactorcode = self.input_ask("Two factor auth code required")
@@ -160,7 +165,7 @@ class SteamBroadcastPlugin(Plugin):
                 emailsteamid=resp.get("emailsteamid", ""),
                 captcha_text=captcha_text,
                 captchagid=captchagid,
-                twofactorcode=twofactorcode
+                twofactorcode=twofactorcode,
             )
 
         log.error("Something went wrong while logging in to Steam")
@@ -174,31 +179,32 @@ class SteamBroadcastPlugin(Plugin):
                 broadcastid=0,
                 steamid=steamid,
                 viewertoken=viewertoken,
-                sessionid=sessionid
+                sessionid=sessionid,
             ),
             schema=validate.Schema(
                 validate.parse_json(),
                 {
-                    "success": validate.any("ready", "unavailable", "waiting", "waiting_to_start", "waiting_for_start"),
-                    "retry": int,
-                    "broadcastid": validate.any(str, int),
+                    "success": str,
                     validate.optional("url"): validate.url(),
-                    validate.optional("viewertoken"): str
-                }
-            )
+                    validate.optional("cdn_auth_url_parameters"): validate.any(str, None),
+                },
+                validate.union_get("success", "url", "cdn_auth_url_parameters"),
+            ),
         )
 
     def _find_steamid(self, url):
-        return self.session.http.get(url, schema=validate.Schema(
-            validate.parse_html(),
-            validate.xml_xpath_string(".//div[@id='webui_config']/@data-broadcast"),
-            validate.any(None, validate.all(
-                str,
-                validate.parse_json(),
-                {"steamid": str},
-                validate.get("steamid")
-            ))
-        ))
+        return self.session.http.get(
+            url,
+            schema=validate.Schema(
+                validate.parse_html(),
+                validate.xml_xpath_string(".//div[@id='webui_config']/@data-broadcast"),
+                validate.none_or_all(
+                    validate.parse_json(),
+                    {"steamid": str},
+                    validate.get("steamid"),
+                ),
+            ),
+        )
 
     def _get_streams(self):
         self.session.http.headers["User-Agent"] = f"streamlink/{self.session.version}"
@@ -206,7 +212,12 @@ class SteamBroadcastPlugin(Plugin):
         email = self.get_option("email")
         if email:
             log.info(f"Attempting to login to Steam as {email}")
-            if self.dologin(email, self.get_option("password")):
+            try:
+                success = self.dologin(email, self.get_option("password"))
+            except SteamLoginFailed as err:
+                log.error(err)
+                return
+            if success:
                 log.info(f"Logged in as {email}")
                 self.save_cookies(lambda c: "steamMachineAuth" in c.name)
 
@@ -221,20 +232,17 @@ class SteamBroadcastPlugin(Plugin):
         res = self.session.http.get(self.url)  # get the page to set some cookies
         sessionid = res.cookies.get("sessionid")
 
-        streamdata = None
-        while streamdata is None or streamdata["success"] in ("waiting", "waiting_for_start"):
-            streamdata = self._get_broadcast_stream(steamid, sessionid=sessionid)
+        success, url, cdn_auth = self._get_broadcast_stream(steamid, sessionid=sessionid)
+        if success != "ready" or not url:
+            log.error("This stream is currently unavailable")
+            return
 
-            if streamdata["success"] == "ready":
-                return DASHStream.parse_manifest(self.session, streamdata["url"])
+        # CDN auth data is only required at certain times of the day, and it makes
+        # segment requests fail if missing (the DASH manifest still works regardless).
+        # Remove leading ampersand and pass the params as a string, to avoid URL quoting.
+        params = re.sub(r"^&", "", cdn_auth) if cdn_auth else None
 
-            if streamdata["success"] == "unavailable":
-                log.error("This stream is currently unavailable")
-                return
-
-            r = streamdata["retry"] / 1000.0
-            log.info(f"Waiting for stream, will retry again in {r:.1f} seconds...")
-            time.sleep(r)
+        return DASHStream.parse_manifest(self.session, url, params=params)
 
 
 __plugin__ = SteamBroadcastPlugin

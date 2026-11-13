@@ -1,14 +1,22 @@
-import logging
+"""
+$description Global live-streaming and video on-demand hosting platform.
+$url players.brightcove.net
+$type live, vod
+$metadata title
+"""
+
 import re
 from urllib.parse import urlparse
 
+from streamlink.logger import getLogger
 from streamlink.plugin import Plugin, PluginError, pluginmatcher
 from streamlink.plugin.api import validate
 from streamlink.stream.hls import HLSStream
 from streamlink.stream.http import HTTPStream
 from streamlink.utils.parse import parse_qsd
 
-log = logging.getLogger(__name__)
+
+log = getLogger(__name__)
 
 
 class BrightcovePlayer:
@@ -28,16 +36,16 @@ class BrightcovePlayer:
         player_url = self.URL_PLAYER.format(
             account_id=self.account_id,
             player_id=self.player_id,
-            video_id=video_id
+            video_id=video_id,
         )
 
         policy_key = self.session.http.get(
             player_url,
             params={"videoId": video_id},
             schema=validate.Schema(
-                validate.transform(re.compile(r"""policyKey\s*:\s*(?P<q>['"])(?P<key>[\w-]+)(?P=q)""").search),
-                validate.any(None, validate.get("key"))
-            )
+                re.compile(r"""policyKey\s*:\s*(?P<q>['"])(?P<key>[\w-]+)(?P=q)"""),
+                validate.any(None, validate.get("key")),
+            ),
         )
         if not policy_key:
             raise PluginError("Could not find Brightcove policy key")
@@ -50,17 +58,19 @@ class BrightcovePlayer:
             schema=validate.Schema(
                 validate.parse_json(),
                 {
-                    "sources": [{
-                        "src": validate.url(),
-                        validate.optional("type"): str,
-                        validate.optional("container"): str,
-                        validate.optional("height"): int,
-                        validate.optional("avg_bitrate"): int,
-                    }],
+                    "sources": [
+                        {
+                            "src": validate.url(),
+                            validate.optional("type"): str,
+                            validate.optional("container"): str,
+                            validate.optional("height"): int,
+                            validate.optional("avg_bitrate"): int,
+                        },
+                    ],
                     validate.optional("name"): str,
                 },
-                validate.union_get("sources", "name")
-            )
+                validate.union_get("sources", "name"),
+            ),
         )
 
         for source in sources:
@@ -79,9 +89,9 @@ class BrightcovePlayer:
                 yield q, HTTPStream(self.session, source.get("src"))
 
 
-@pluginmatcher(re.compile(
-    r"https?://players\.brightcove\.net/(?P<account_id>[^/]+)/(?P<player_id>[^/]+)/index\.html"
-))
+@pluginmatcher(
+    re.compile(r"https?://players\.brightcove\.net/(?P<account_id>[^/]+)/(?P<player_id>[^/]+)/index\.html"),
+)
 class Brightcove(Plugin):
     def _get_streams(self):
         video_id = parse_qsd(urlparse(self.url).query).get("videoId")

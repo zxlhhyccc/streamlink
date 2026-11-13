@@ -1,0 +1,36 @@
+name: Documentation
+
+on:
+  push:
+    branches:
+      - master
+    tags:
+      - "**"
+
+concurrency:
+  group: docs-deployment
+  cancel-in-progress: false
+
+jobs:
+  documentation:
+    name: Build and deploy
+    if: github.repository == 'streamlink/streamlink'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 300
+      - name: Fetch tags
+        run: ./.github/workflows/scripts/fetch-tags.sh
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.14"
+      - uses: astral-sh/setup-uv@68559e99cc807c1eb7e9238fd43a15bba460eec2 # v10.3.3
+        with:
+          prune-cache: true
+      - name: Build
+        run: uv run --frozen --group docs make --directory=docs html
+      - name: Deploy
+        env:
+          DOCS_DEPLOY_TOKEN: ${{ secrets.DOCS_DEPLOY_TOKEN }}
+        run: ./script/deploy-docs.sh

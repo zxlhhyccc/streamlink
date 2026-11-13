@@ -1,16 +1,38 @@
-import logging
+"""
+$description Japanese live-streaming and video hosting social platform.
+$url live.nicovideo.jp
+$type live, vod
+$metadata id
+$metadata author
+$metadata title
+$account Required by some streams
+$notes Timeshift is supported
+"""
+
+from __future__ import annotations
+
 import re
 from threading import Event
+from typing import TYPE_CHECKING
+from urllib.parse import urljoin
 
-from streamlink.plugin import Plugin, PluginArgument, PluginArguments, PluginError, pluginmatcher
+from requests.exceptions import HTTPError
+
+from streamlink.exceptions import StreamError
+from streamlink.logger import getLogger
+from streamlink.plugin import Plugin, pluginargument, pluginmatcher
 from streamlink.plugin.api import useragents, validate
 from streamlink.plugin.api.websocket import WebsocketClient
-from streamlink.stream.hls import HLSStream, HLSStreamReader
+from streamlink.stream.hls import HLSStream, HLSStreamReader, HLSStreamWriter
 from streamlink.utils.parse import parse_json
-from streamlink.utils.times import hours_minutes_seconds
 from streamlink.utils.url import update_qsd
 
-log = logging.getLogger(__name__)
+
+if TYPE_CHECKING:
+    from streamlink.stream.hls import HLSSegment
+
+
+log = getLogger(__name__)
 
 
 class NicoLiveWsClient(WebsocketClient):
@@ -20,10 +42,26 @@ class NicoLiveWsClient(WebsocketClient):
     opened: Event
     hls_stream_url: str
 
+    _SCHEMA_COOKIES = validate.Schema(
+        [
+            {
+                "domain": str,
+                "path": str,
+                "name": str,
+                "value": str,
+                "secure": bool,
+            },
+        ],
+    )
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.opened = Event()
         self.ready = Event()
+
+    def reconnect(self, *args, **kwargs):
+        self.ready.clear()
+        return super().reconnect(*args, **kwargs)
 
     def on_open(self, wsapp):
         super().on_open(wsapp)
@@ -36,22 +74,40 @@ class NicoLiveWsClient(WebsocketClient):
         msgtype = message.get("type")
         msgdata = message.get("data", {})
 
-        if msgtype == "ping":
-            self.send_pong()
+        if handler := self._MESSAGE_HANDLERS.get(msgtype):
+            handler(self, msgdata)
 
-        elif msgtype == "stream" and msgdata.get("protocol") == "hls" and msgdata.get("uri"):
-            self.hls_stream_url = msgdata.get("uri")
-            self.ready.set()
-            if self.opened.wait(self.STREAM_OPENED_TIMEOUT):
-                log.debug("Stream opened, keeping websocket connection alive")
-            else:
-                log.info("Closing websocket connection")
-                self.close()
+    def on_message_ping(self, _data):
+        self.send_pong()
 
-        elif msgtype == "disconnect":
-            reason = msgdata.get("reason", "Unknown reason")
-            log.info(f"Received disconnect message: {reason}")
+    def on_message_disconnect(self, data):
+        reason = data.get("reason", "Unknown reason")
+        log.info(f"Received disconnect message: {reason}")
+        self.close()
+
+    def on_message_stream(self, data):
+        if data.get("protocol") != "hls" or not data.get("uri"):
+            return
+
+        # cookies may be required by some HLS multivariant playlists
+        if cookies := data.get("cookies", []):
+            log.info("Applying HTTP session cookies from websocket data")
+            for cookie in self._SCHEMA_COOKIES.validate(cookies):
+                self.session.http.cookies.set(**cookie)
+
+        self.hls_stream_url = data.get("uri")
+        self.ready.set()
+        if self.opened.wait(self.STREAM_OPENED_TIMEOUT):
+            log.debug("Stream opened, keeping websocket connection alive")
+        else:
+            log.info("Closing websocket connection")
             self.close()
+
+    _MESSAGE_HANDLERS = {
+        "ping": on_message_ping,
+        "disconnect": on_message_disconnect,
+        "stream": on_message_stream,
+    }
 
     def send_playerversion(self):
         self.send_json({
@@ -61,22 +117,22 @@ class NicoLiveWsClient(WebsocketClient):
                     "quality": "abr",
                     "protocol": "hls",
                     "latency": "high",
-                    "chasePlay": False
+                    "chasePlay": False,
                 },
                 "room": {
                     "protocol": "webSocket",
-                    "commentable": True
+                    "commentable": True,
                 },
-                "reconnect": False
-            }
+                "reconnect": False,
+            },
         })
 
     def send_getpermit(self):
         self.send_json({
             "type": "getAkashic",
             "data": {
-                "chasePlay": False
-            }
+                "chasePlay": False,
+            },
         })
 
     def send_pong(self):
@@ -84,8 +140,48 @@ class NicoLiveWsClient(WebsocketClient):
         self.send_json({"type": "keepSeat"})
 
 
+class NicoLiveHLSStreamWriter(HLSStreamWriter):
+    reader: NicoLiveHLSStreamReader
+    stream: NicoLiveHLSStream
+
+    def create_decryptor(self, *args, **kwargs):
+        try:
+            return super().create_decryptor(*args, **kwargs)
+        except StreamError as err:
+            if (
+                not (orig_err := err.__context__)
+                or not isinstance(orig_err, HTTPError)
+                or orig_err.response is None
+                or orig_err.response.status_code != 403
+            ):
+                raise
+
+            if not self.stream.wsclient.is_reconnecting.is_set():
+                log.warning("HLSSegment decryption key retrieval failed. Attempting to reconnect to websocket...")
+                self.stream.wsclient.reconnect()
+            if (
+                not self.stream.wsclient.reconnect_done.wait(self.stream.wsclient.STREAM_OPENED_TIMEOUT)
+                or not self.stream.wsclient.ready.wait(self.stream.wsclient.STREAM_OPENED_TIMEOUT)
+            ):  # fmt: skip
+                raise
+
+            # drop cached key
+            self.key_uri = None
+
+            return super().create_decryptor(*args, **kwargs)
+
+    def should_filter_segment(self, segment: HLSSegment) -> bool:
+        if "/blank/" in segment.uri:
+            return True
+
+        return super().should_filter_segment(segment)
+
+
 class NicoLiveHLSStreamReader(HLSStreamReader):
-    stream: "NicoLiveHLSStream"
+    __writer__ = NicoLiveHLSStreamWriter
+
+    writer: NicoLiveHLSStreamWriter
+    stream: NicoLiveHLSStream
 
     def open(self):
         self.stream.wsclient.opened.set()
@@ -100,59 +196,61 @@ class NicoLiveHLSStream(HLSStream):
     __reader__ = NicoLiveHLSStreamReader
     wsclient: NicoLiveWsClient
 
-    def set_wsclient(self, wsclient: NicoLiveWsClient):
+    def __init__(self, *args, wsclient: NicoLiveWsClient, **kwargs):
+        super().__init__(*args, **kwargs)
         self.wsclient = wsclient
 
 
-@pluginmatcher(re.compile(
-    r"https?://(?P<domain>live\d*\.nicovideo\.jp)/watch/(lv|co)\d+"
-))
-class NicoLive(Plugin):
-    arguments = PluginArguments(
-        PluginArgument(
-            "email",
-            argument_name="niconico-email",
-            sensitive=True,
-            metavar="EMAIL",
-            help="The email or phone number associated with your Niconico account"
-        ),
-        PluginArgument(
-            "password",
-            argument_name="niconico-password",
-            sensitive=True,
-            metavar="PASSWORD",
-            help="The password of your Niconico account"
-        ),
-        PluginArgument(
-            "user-session",
-            argument_name="niconico-user-session",
-            sensitive=True,
-            metavar="VALUE",
-            help="Value of the user-session token \n(can be used in "
-                 "case you do not want to put your password here)"
-        ),
-        PluginArgument(
-            "purge-credentials",
-            argument_name="niconico-purge-credentials",
-            action="store_true",
-            help="Purge cached Niconico credentials to initiate a new session and reauthenticate."
-        ),
-        PluginArgument(
-            "timeshift-offset",
-            type=hours_minutes_seconds,
-            argument_name="niconico-timeshift-offset",
-            metavar="[HH:]MM:SS",
-            default=None,
-            help="Amount of time to skip from the beginning of a stream. Default is 00:00:00."
-        )
-    )
+@pluginmatcher(
+    re.compile(r"https?://(?P<domain>live\d*\.nicovideo\.jp)/watch/(lv|co|user/)\d+"),
+)
+@pluginargument(
+    "email",
+    sensitive=True,
+    argument_name="niconico-email",
+    metavar="EMAIL",
+    help="The email or phone number associated with your Niconico account",
+)
+@pluginargument(
+    "password",
+    sensitive=True,
+    argument_name="niconico-password",
+    metavar="PASSWORD",
+    help="The password of your Niconico account",
+)
+@pluginargument(
+    "user-session",
+    sensitive=True,
+    argument_name="niconico-user-session",
+    metavar="VALUE",
+    help="""
+        Value of the user-session token.
 
+        Can be used as an alternative to providing a password.
+    """,
+)
+@pluginargument(
+    "purge-credentials",
+    argument_name="niconico-purge-credentials",
+    action="store_true",
+    help="Purge cached Niconico credentials to initiate a new session and reauthenticate.",
+)
+@pluginargument(
+    "timeshift-offset",
+    type="hours_minutes_seconds",
+    argument_name="niconico-timeshift-offset",
+    metavar="[[XX:]XX:]XX | [XXh][XXm][XXs]",
+    help="""
+        Amount of time to skip from the beginning of a stream.
+
+        Default is 0.
+    """,
+)
+class NicoLive(Plugin):
     STREAM_READY_TIMEOUT = 6
     LOGIN_URL = "https://account.nicovideo.jp/login/redirector"
     LOGIN_URL_PARAMS = {
-        "show_button_twitter": 1,
-        "show_button_facebook": 1,
-        "next_url": "/",
+        "site": "niconico",
     }
 
     wsclient: NicoLiveWsClient
@@ -168,14 +266,17 @@ class NicoLive(Plugin):
 
         self.niconico_web_login()
 
-        wss_api_url = self.get_wss_api_url()
+        data = self.get_data()
+
+        wss_api_url = self.find_wss_api_url(data)
         if not wss_api_url:
             log.error(
                 "Failed to get wss_api_url. "
-                "Please check if the URL is correct, "
-                "and make sure your account has access to the video."
+                + "Please check if the URL is correct, and make sure your account has access to the video.",
             )
             return
+
+        self.id, self.author, self.title = self.find_metadata(data)
 
         self.wsclient = NicoLiveWsClient(self.session, wss_api_url)
         self.wsclient.start()
@@ -186,11 +287,14 @@ class NicoLive(Plugin):
 
         offset = self.get_option("timeshift-offset")
         if offset and "timeshift" in wss_api_url:
-            hls_stream_url = update_qsd(self.hls_stream_url, {"start": offset})
+            hls_stream_url = update_qsd(hls_stream_url, {"start": offset})
 
-        for quality, stream in NicoLiveHLSStream.parse_variant_playlist(self.session, hls_stream_url).items():
-            stream.set_wsclient(self.wsclient)
-            yield quality, stream
+        return NicoLiveHLSStream.parse_variant_playlist(
+            self.session,
+            hls_stream_url,
+            wsclient=self.wsclient,
+            ffmpeg_options={"copyts": True},
+        )
 
     def _get_hls_stream_url(self):
         log.debug(f"Waiting for permit (for at most {self.STREAM_READY_TIMEOUT} seconds)...")
@@ -201,26 +305,60 @@ class NicoLive(Plugin):
 
         return self.wsclient.hls_stream_url
 
-    def get_wss_api_url(self):
-        try:
-            data = self.session.http.get(self.url, schema=validate.Schema(
+    def get_data(self):
+        return self.session.http.get(
+            self.url,
+            encoding="utf-8",
+            schema=validate.Schema(
                 validate.parse_html(),
                 validate.xml_find(".//script[@id='embedded-data'][@data-props]"),
                 validate.get("data-props"),
                 validate.parse_json(),
-                {"site": {
+            ),
+        )
+
+    @staticmethod
+    def find_metadata(data):
+        schema = validate.Schema(
+            {
+                "program": {
+                    "nicoliveProgramId": str,
+                    "supplier": {"name": str},
+                    "title": str,
+                },
+            },
+            validate.get("program"),
+            validate.union_get(
+                "nicoliveProgramId",
+                ("supplier", "name"),
+                "title",
+            ),
+        )
+
+        return schema.validate(data)
+
+    @staticmethod
+    def find_wss_api_url(data):
+        schema = validate.Schema(
+            {
+                "site": {
                     "relive": {
-                        "webSocketUrl": validate.url(scheme="wss")
+                        "webSocketUrl": validate.any(
+                            validate.url(scheme="wss"),
+                            "",
+                        ),
                     },
-                    validate.optional("frontendId"): int
-                }},
-                validate.get("site"),
-                validate.union_get(("relive", "webSocketUrl"), "frontendId")
-            ))
-        except PluginError:
+                    validate.optional("frontendId"): int,
+                },
+            },
+            validate.get("site"),
+            validate.union_get(("relive", "webSocketUrl"), "frontendId"),
+        )
+
+        wss_api_url, frontend_id = schema.validate(data)
+        if not wss_api_url:
             return
 
-        wss_api_url, frontend_id = data
         if frontend_id is not None:
             wss_api_url = update_qsd(wss_api_url, {"frontend_id": frontend_id})
 
@@ -237,7 +375,7 @@ class NicoLive(Plugin):
                 "user_session",
                 user_session,
                 path="/",
-                domain="nicovideo.jp"
+                domain="nicovideo.jp",
             )
             self.save_cookies()
 
@@ -246,19 +384,41 @@ class NicoLive(Plugin):
 
         elif email is not None and password is not None:
             log.info("Logging in via provided email and password")
-            msg = self.session.http.post(
+            root = self.session.http.post(
                 self.LOGIN_URL,
                 data={"mail_tel": email, "password": password},
                 params=self.LOGIN_URL_PARAMS,
-                schema=validate.Schema(
-                    validate.parse_html(),
-                    validate.xml_xpath_string(".//p[@class='notice__text']/text()")
-                )
+                schema=validate.Schema(validate.parse_html()),
             )
 
+            if self.session.http.cookies.get("user_session"):
+                log.info("Logged in.")
+                self.save_cookies()
+                return
+
+            input_with_value = {}
+            for elem in root.xpath(".//form[@action]//input"):
+                if elem.attrib.get("value"):
+                    input_with_value[elem.attrib.get("name")] = elem.attrib.get("value")
+                elif elem.attrib.get("id") == "oneTimePw":
+                    maxlength = int(elem.attrib.get("maxlength"))
+                    oneTimePw = self.input_ask("Enter the 6 digit number included in email")
+                    if len(oneTimePw) > maxlength:
+                        log.error("invalid user input")
+                        return
+                    input_with_value[elem.attrib.get("name")] = oneTimePw
+                else:
+                    log.debug(f"unknown input: {elem.attrib.get('name')}")
+
+            root = self.session.http.post(
+                urljoin("https://account.nicovideo.jp", root.xpath("string(.//form[@action]/@action)")),
+                data=input_with_value,
+                schema=validate.Schema(validate.parse_html()),
+            )
             log.debug(f"Cookies: {self.session.http.cookies.get_dict()}")
             if self.session.http.cookies.get("user_session") is None:
-                log.warning(f"Login failed: {msg or 'unknown reason'}")
+                error = root.xpath("string(//div[@class='formError']/div/text())")
+                log.warning(f"Login failed: {error or 'unknown reason'}")
             else:
                 log.info("Logged in.")
                 self.save_cookies()

@@ -5,11 +5,15 @@ from tests.plugins import PluginCanHandleUrl
 class TestPluginCanHandleUrlCinerGroup(PluginCanHandleUrl):
     __plugin__ = CinerGroup
 
-    should_match = [
-        'http://showtv.com.tr/canli-yayin',
-        'http://haberturk.com/canliyayin',
-        'http://showmax.com.tr/canliyayin',
-        'http://showturk.com.tr/canli-yayin/showturk',
-        'http://bloomberght.com/tv',
-        'http://haberturk.tv/canliyayin',
+    should_match_groups = [
+        (("bloomberght", "https://bloomberght.com/tv"), {}),
+        (("haberturk", "https://haberturk.com/canliyayin"), {}),
+        (("haberturk", "https://haberturk.com/tv/canliyayin"), {}),
+        (("showmax", "http://showmax.com.tr/canliyayin"), {}),
+        (("showmax", "http://showmax.com.tr/canli-yayin"), {}),
+        (("showturk", "https://showturk.com.tr/canli-yayin/showturk"), {}),
+        (("showturk", "https://showturk.com.tr/canli-yayin"), {}),
+        (("showturk", "https://showturk.com.tr/canliyayin"), {}),
+        (("showtv", "https://showtv.com.tr/canli-yayin"), {}),
+        (("showtv", "https://showtv.com.tr/canli-yayin/showtv"), {}),
     ]

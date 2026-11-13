@@ -1,91 +1,131 @@
+"""
+$description Global live broadcasting and live broadcast archiving social platform.
+$url twitcasting.tv
+$type live
+$metadata id
+"""
+
+from __future__ import annotations
+
 import hashlib
-import logging
 import re
+import sys
 
 from streamlink.buffers import RingBuffer
-from streamlink.plugin import Plugin, PluginArgument, PluginArguments, PluginError, pluginmatcher
+from streamlink.logger import getLogger
+from streamlink.plugin import Plugin, pluginargument, pluginmatcher
 from streamlink.plugin.api import validate
 from streamlink.plugin.api.websocket import WebsocketClient
-from streamlink.stream.stream import Stream
-from streamlink.stream.stream import StreamIO
+from streamlink.stream.hls import HLSStream, HLSStreamReader, HLSStreamWriter
+from streamlink.stream.stream import Stream, StreamIO
 from streamlink.utils.url import update_qsd
 
 
-log = logging.getLogger(__name__)
+log = getLogger(__name__)
 
 
-@pluginmatcher(re.compile(
-    r"https?://twitcasting\.tv/(?P<channel>[^/]+)"
-))
-class TwitCasting(Plugin):
-    arguments = PluginArguments(
-        PluginArgument(
-            "password",
-            sensitive=True,
-            metavar="PASSWORD",
-            help="Password for private Twitcasting streams."
+class TwitCastingHLSStreamWriter(HLSStreamWriter):
+    _re_preroll_map_segment = re.compile(r"-\d+\.\w+$", re.IGNORECASE)
+
+    def should_filter_segment(self, segment):
+        return (
+            "preroll-" in segment.uri
+            or (segment.map and self._re_preroll_map_segment.search(segment.map.uri))
+            or super().should_filter_segment(segment)
         )
-    )
-    _STREAM_INFO_URL = "https://twitcasting.tv/streamserver.php?target={channel}&mode=client"
-    _STREAM_REAL_URL = "{proto}://{host}/ws.app/stream/{movie_id}/fmp4/bd/1/1500?mode={mode}"
 
-    _STREAM_INFO_SCHEMA = validate.Schema({
-        validate.optional("movie"): {
-            "id": int,
-            "live": bool
-        },
-        validate.optional("fmp4"): {
-            "host": str,
-            "proto": str,
-            "source": bool,
-            "mobilesource": bool
-        }
-    })
 
-    def __init__(self, url):
-        super().__init__(url)
-        self.channel = self.match.group("channel")
+class TwitCastingHLSStreamReader(HLSStreamReader):
+    __writer__ = TwitCastingHLSStreamWriter
+
+
+class TwitCastingHLSStream(HLSStream):
+    __reader__ = TwitCastingHLSStreamReader
+
+
+@pluginmatcher(
+    re.compile(r"https?://twitcasting\.tv/(?P<channel>[^/]+)"),
+)
+@pluginargument(
+    "password",
+    sensitive=True,
+    metavar="PASSWORD",
+    help="Password for private Twitcasting streams.",
+)
+class TwitCasting(Plugin):
+    _URL_API_STREAMSERVER = "https://twitcasting.tv/streamserver.php"
+
+    # prefer websocket streams over HLS streams due to latency reasons
+    _WEIGHTS = {
+        "ws_main": sys.maxsize,
+        "ws_mobilesource": sys.maxsize - 1,
+        "ws_base": sys.maxsize - 2,
+        "hls_high": sys.maxsize - 10,
+        "hls_medium": sys.maxsize - 11,
+        "hls_low": sys.maxsize - 12,
+    }
+
+    @classmethod
+    def stream_weight(cls, stream: str) -> tuple[float, str]:
+        return (cls._WEIGHTS[stream], "none") if stream in cls._WEIGHTS else super().stream_weight(stream)
+
+    def _api_query_streamserver(self):
+        return self.session.http.get(
+            self._URL_API_STREAMSERVER,
+            params={
+                "target": self.match["channel"],
+                "mode": "client",
+                "player": "pc_web",
+            },
+            schema=validate.Schema(
+                validate.parse_json(),
+                {
+                    validate.optional("movie"): {
+                        "id": int,
+                        "live": bool,
+                    },
+                    validate.optional("llfmp4"): {
+                        "streams": {
+                            str: validate.url(),
+                        },
+                    },
+                    validate.optional("tc-hls"): {
+                        "streams": {
+                            str: validate.url(),
+                        },
+                    },
+                },
+                validate.union_get("movie", "llfmp4", "tc-hls"),
+            ),
+        )
+
+    def _get_streams_hls(self, streams, params=None):
+        for name, url in streams.items():
+            yield f"hls_{name}", TwitCastingHLSStream(self.session, url, params=params)
+
+    def _get_streams_websocket(self, streams, params=None):
+        for name, url in streams.items():
+            yield f"ws_{name}", TwitCastingStream(self.session, url, params=params)
 
     def _get_streams(self):
-        stream_info = self._get_stream_info()
-        log.debug(f"Live stream info: {stream_info}")
+        movie, websocket, hls = self._api_query_streamserver()
+        if not movie or not movie.get("id") or not movie.get("live"):
+            log.error(f"No live stream available for user {self.match['channel']}")
+            return
+        if not websocket and not hls:
+            log.error("Unsupported stream type")
+            return
 
-        if not stream_info.get("movie") or not stream_info["movie"]["live"]:
-            raise PluginError("The live stream is offline")
+        self.id = movie.get("id")
 
-        if not stream_info.get("fmp4"):
-            raise PluginError("Login required")
+        params = {}
+        if password := self.options.get("password"):
+            params |= {"word": hashlib.md5(password.encode()).hexdigest()}
 
-        # Keys are already validated by schema above
-        proto = stream_info["fmp4"]["proto"]
-        host = stream_info["fmp4"]["host"]
-        movie_id = stream_info["movie"]["id"]
-
-        if stream_info["fmp4"]["source"]:
-            mode = "main"  # High quality
-        elif stream_info["fmp4"]["mobilesource"]:
-            mode = "mobilesource"  # Medium quality
-        else:
-            mode = "base"  # Low quality
-
-        if (proto == '') or (host == '') or (not movie_id):
-            raise PluginError(f"No stream available for user {self.channel}")
-
-        real_stream_url = self._STREAM_REAL_URL.format(proto=proto, host=host, movie_id=movie_id, mode=mode)
-
-        password = self.options.get("password")
-        if password is not None:
-            password_hash = hashlib.md5(password.encode()).hexdigest()
-            real_stream_url = update_qsd(real_stream_url, {"word": password_hash})
-
-        log.debug(f"Real stream url: {real_stream_url}")
-
-        return {mode: TwitCastingStream(session=self.session, url=real_stream_url)}
-
-    def _get_stream_info(self):
-        url = self._STREAM_INFO_URL.format(channel=self.channel)
-        res = self.session.http.get(url)
-        return self.session.http.json(res, schema=self._STREAM_INFO_SCHEMA)
+        if websocket:
+            yield from self._get_streams_websocket(websocket["streams"], params)
+        if hls:
+            yield from self._get_streams_hls(hls["streams"], params)
 
 
 class TwitCastingWsClient(WebsocketClient):
@@ -97,7 +137,10 @@ class TwitCastingWsClient(WebsocketClient):
         super().on_close(*args, **kwargs)
         self.buffer.close()
 
-    def on_message(self, wsapp, data: str) -> None:
+    def on_data(self, wsapp, data, data_type, cont):
+        if data_type == self.OPCODE_TEXT:
+            return
+
         try:
             self.buffer.write(data)
         except Exception as err:
@@ -106,7 +149,7 @@ class TwitCastingWsClient(WebsocketClient):
 
 
 class TwitCastingReader(StreamIO):
-    def __init__(self, stream: "TwitCastingStream", timeout=None):
+    def __init__(self, stream: TwitCastingStream, timeout=None):
         super().__init__()
         self.session = stream.session
         self.stream = stream
@@ -119,7 +162,7 @@ class TwitCastingReader(StreamIO):
             self.buffer,
             stream.session,
             stream.url,
-            origin="https://twitcasting.tv/"
+            origin="https://twitcasting.tv/",
         )
 
     def open(self):
@@ -133,17 +176,19 @@ class TwitCastingReader(StreamIO):
         return self.buffer.read(
             size,
             block=self.wsclient.is_alive(),
-            timeout=self.timeout
+            timeout=self.timeout,
         )
 
 
 class TwitCastingStream(Stream):
-    def __init__(self, session, url):
-        super().__init__(session)
-        self.url = url
+    __shortname__ = "websocket"
 
-    def __repr__(self):
-        return f"<TwitCastingStream({self.url!r})>"
+    def __init__(self, session, url, params):
+        super().__init__(session)
+        self.url = update_qsd(url, params or {})
+
+    def to_url(self):
+        return self.url
 
     def open(self):
         reader = TwitCastingReader(self)

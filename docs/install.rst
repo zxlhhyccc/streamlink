@@ -5,253 +5,344 @@
 Installation
 ============
 
+.. sphinx-design currently doesn't support autosectionlabel, so set labels for the following sections explicitly
+
+.. grid:: 4
+    :padding: 0
+    :class-container: installation-grid
+
+    .. grid-item-card::
+        :link: windows
+        :link-type: ref
+        :link-alt: Windows
+        :padding: 3
+        :text-align: center
+
+        :fab:`windows`
+
+    .. grid-item-card::
+        :link: macos
+        :link-type: ref
+        :link-alt: macOS
+        :padding: 3
+        :text-align: center
+
+        :fab:`apple`
+
+    .. grid-item-card::
+        :link: linux-and-bsd
+        :link-type: ref
+        :link-alt: Linux and BSD
+        :padding: 3
+        :text-align: center
+
+        :fab:`linux`
+
+    .. grid-item-card::
+        :link: pypi-package-and-source-code
+        :link-type: ref
+        :link-alt: PyPI package and source code
+        :padding: 3
+        :text-align: center
+
+        :fab:`python`
+
+
+.. _windows:
+
 Windows
 -------
 
-.. rst-class:: table-custom-layout
+.. list-table::
+    :header-rows: 1
+    :class: table-custom-layout
 
-==================================== ===========================================
-Method                               Installing
-==================================== ===========================================
-Installers                           See the `Windows binaries`_ section below
+    * - Method
+      - Installing
+    * - :octicon:`verified` Installers
+      - See the `Windows binaries`_ section below
+    * - :octicon:`verified` Portable
+      - See the `Windows binaries`_ section below
+    * - :octicon:`verified` Preview builds
+      - See the `Windows binaries`_ section below
+    * - :octicon:`verified` Python pip
+      - See the `PyPI package and source code`_ section below
+    * - :octicon:`package` `Chocolatey`_
+      - .. code-block:: bat
 
-Portable                             See the `Windows portable version`_ section below
+            choco install streamlink
 
-Python pip                           See the `PyPI package and source code`_ section below
+        `Installing Chocolatey packages`_
+    * - :octicon:`package` `MSYS2`_
+      - .. code-block:: bat
 
-`Chocolatey`_                        .. code-block:: bat
+            pacman -Ss streamlink
+            pacman -S mingw-w64-x86_64-streamlink
 
-                                        choco install streamlink
+        `Installing MSYS2 packages`_
+    * - :octicon:`package-dependents` `Scoop`_
+      - .. code-block::
 
-                                     `Installing Chocolatey packages`_
+            scoop bucket add extras
+            scoop install streamlink
 
-`Windows Package Manager`_           .. code-block:: bat
+        `Installing Scoop packages`_
+    * - :octicon:`package-dependents` `Windows Package Manager`_
+      - .. code-block:: bat
 
-                                        winget install streamlink
+            winget install streamlink
 
-                                     `Installing Winget packages`_
-==================================== ===========================================
+        `Installing Winget packages`_
 
 .. _Chocolatey: https://chocolatey.org/packages/streamlink
-
+.. _MSYS2: https://packages.msys2.org/base/mingw-w64-streamlink
+.. _Scoop: https://scoop.sh/#/apps?q=streamlink&s=0&d=1&o=true
 .. _Windows Package Manager: https://github.com/microsoft/winget-pkgs/tree/master/manifests/s/Streamlink/Streamlink
-
 .. _Installing Chocolatey packages: https://chocolatey.org
-
+.. _Installing MSYS2 packages: https://www.msys2.org
+.. _Installing Scoop packages: https://scoop.sh
 .. _Installing Winget packages: https://docs.microsoft.com/en-us/windows/package-manager/
+
+
+.. _macos:
 
 macOS
 -----
 
-.. rst-class:: table-custom-layout
+.. list-table::
+    :header-rows: 1
+    :class: table-custom-layout
 
-==================================== ===========================================
-Method                               Installing
-==================================== ===========================================
-Python pip                           See the `PyPI package and source code`_ section below
+    * - Method
+      - Installing
+    * - :octicon:`verified` Python pip
+      - See the `PyPI package and source code`_ section below
+    * - :octicon:`package-dependents` `Homebrew`_
+      - .. code-block:: bash
 
-`Homebrew`_                          .. code-block:: bash
+            brew install streamlink
 
-                                        brew install streamlink
+        `Installing Homebrew packages`_
 
-                                     `Installing Homebrew packages`_
-==================================== ===========================================
-
-.. _Homebrew: https://github.com/Homebrew/homebrew-core/blob/master/Formula/streamlink.rb
+.. _Homebrew: https://formulae.brew.sh/formula/streamlink
 .. _Installing Homebrew packages: https://brew.sh
 
+
+.. _linux-and-bsd:
 
 Linux and BSD
 -------------
 
-.. rst-class:: table-custom-layout
+.. list-table::
+    :header-rows: 1
+    :class: table-custom-layout
 
-==================================== ===========================================
-Distribution                         Installing
-==================================== ===========================================
-AppImage                             See the `AppImages`_ section below
+    * - Method / Distribution
+      - Installing
+    * - :octicon:`verified` AppImage
+      - See the `Linux AppImages`_ section below
+    * - :octicon:`verified` AppImage preview builds
+      - See the `Linux AppImages`_ section below
+    * - :octicon:`verified` Python pip
+      - See the `PyPI package and source code`_ section below
+    * - :octicon:`package-dependents` `Alpine Linux (edge)`_
+      - .. code-block:: bash
 
-Python pip                           See the `PyPI package and source code`_ section below
+            sudo apk add streamlink
+    * - :octicon:`package-dependents` `ALT Linux (Sisyphus)`_
+      - .. code-block:: bash
 
-`Arch Linux`_                        .. code-block:: bash
+            sudo apt-get install streamlink
+    * - :octicon:`package-dependents` `Arch Linux`_
+      - .. code-block:: bash
 
-                                        sudo pacman -S streamlink
+            sudo pacman -S streamlink
+    * - :octicon:`package-dependents` `Arch Linux (AUR, git)`_
+      - .. code-block:: bash
 
-`Arch Linux (aur, git)`_             .. code-block:: bash
+            git clone https://aur.archlinux.org/streamlink-git.git
+            cd streamlink-git
+            makepkg -si
 
-                                        git clone https://aur.archlinux.org/streamlink-git.git
-                                        cd streamlink-git
-                                        makepkg -si
+            # alternatively, get the PKGBUILD from the AUR mirror on GitHub
+            git clone --single-branch --branch streamlink-git https://github.com/archlinux/aur.git streamlink-git
 
-                                     `Installing AUR packages`_
+        `Installing AUR packages`_
+    * - :octicon:`package-dependents` `Debian (sid, testing)`_
+      - .. code-block:: bash
 
-`Debian (sid, testing)`_             .. code-block:: bash
+            sudo apt update
+            sudo apt install streamlink
+    * - :octicon:`package-dependents` `Debian (stable)`_
+      - .. code-block:: bash
 
-                                        sudo apt update
-                                        sudo apt install streamlink
+            # If you don't have Debian backports already (see link below):
+            echo "deb http://deb.debian.org/debian trixie-backports main" | sudo tee "/etc/apt/sources.list.d/streamlink.list"
 
-`Debian (stable)`_                   .. code-block:: bash
+            sudo apt update
+            sudo apt -t trixie-backports install streamlink
 
-                                        # If you don't have Debian backports already (see link below):
-                                        echo "deb http://deb.debian.org/debian buster-backports main" | sudo tee "/etc/apt/sources.list.d/streamlink.list"
+        `Installing Debian backported packages`_
+    * - :octicon:`package-dependents` `Fedora`_
+      - .. code-block:: bash
 
-                                        sudo apt update
-                                        sudo apt -t buster-backports install streamlink
+            sudo dnf install streamlink
+    * - :octicon:`package-dependents` `FreeBSD (pkg)`_
+      - .. code-block:: bash
 
-                                     `Installing Debian backported packages`_
+            pkg install multimedia/streamlink
 
-`Fedora`_                            .. code-block:: bash
+    * - :octicon:`package-dependents` `FreeBSD (ports)`_
+      - .. code-block:: bash
 
-                                        sudo dnf install streamlink
+            cd /usr/ports/multimedia/streamlink
+            make config install clean
+    * - :octicon:`package-dependents` `Gentoo Linux`_
+      - .. code-block:: bash
 
-`Gentoo Linux`_                      .. code-block:: bash
+            sudo emerge net-misc/streamlink
+    * - :octicon:`package-dependents` `NixOS`_
+      - .. code-block:: bash
 
-                                        sudo emerge net-misc/streamlink
+            nix-env -iA nixos.streamlink
 
-`NetBSD (pkgsrc)`_                   .. code-block:: bash
+        `NixOS channel`_
+    * - :octicon:`package-dependents` `openSUSE`_
+      - .. code-block:: bash
 
-                                        cd /usr/pkgsrc/multimedia/streamlink
-                                        sudo make install clean
+            sudo zypper install streamlink
+    * - :octicon:`package-dependents` `Ubuntu`_
+      - Not recommended.
 
-`NixOS`_                             .. code-block:: bash
+        Ubuntu inherits the ``streamlink`` package from Debian, but doesn't maintain or update it.
 
-                                        nix-env -iA nixos.streamlink
+        See `Package availability`_.
+    * - :octicon:`package-dependents` `Solus`_
+      - .. code-block:: bash
 
-                                     `NixOS channel`_
+            sudo eopkg install streamlink
+    * - :octicon:`package-dependents` `Void`_
+      - .. code-block:: bash
 
-`OpenBSD`_                           .. code-block:: bash
+            sudo xbps-install streamlink
 
-                                        doas pkg_add streamlink
-
-`Solus`_                             .. code-block:: bash
-
-                                        sudo eopkg install streamlink
-
-`Ubuntu`_                            .. code-block:: bash
-
-                                        sudo add-apt-repository ppa:nilarimogard/webupd8
-                                        sudo apt update
-                                        sudo apt install streamlink
-
-`Void`_                              .. code-block:: bash
-
-                                        sudo xbps-install streamlink
-==================================== ===========================================
-
-Please see the `PyPI package and source code`_ or `AppImages`_ sections down below
-if a package is not available for your distro or platform, or if it's out of date.
-
-.. _Arch Linux: https://www.archlinux.org/packages/community/any/streamlink/
-.. _Arch Linux (aur, git): https://aur.archlinux.org/packages/streamlink-git/
-.. _Debian (sid, testing): https://packages.debian.org/unstable/streamlink
-.. _Debian (stable): https://packages.debian.org/unstable/streamlink
+.. _Alpine Linux (edge): https://pkgs.alpinelinux.org/packages?name=streamlink
+.. _ALT Linux (Sisyphus): https://packages.altlinux.org/en/sisyphus/srpms/streamlink/
+.. _Arch Linux: https://archlinux.org/packages/extra/any/streamlink/
+.. _Arch Linux (AUR, git): https://aur.archlinux.org/packages/streamlink-git/
+.. _Debian (sid, testing): https://packages.debian.org/sid/streamlink
+.. _Debian (stable): https://packages.debian.org/trixie-backports/streamlink
 .. _Fedora: https://src.fedoraproject.org/rpms/python-streamlink
+.. _FreeBSD (pkg): https://ports.freebsd.org/cgi/ports.cgi?query=streamlink&stype=name
+.. _FreeBSD (ports): https://www.freshports.org/multimedia/streamlink
 .. _Gentoo Linux: https://packages.gentoo.org/package/net-misc/streamlink
-.. _NetBSD (pkgsrc): https://pkgsrc.se/multimedia/streamlink
-.. _NixOS: https://github.com/NixOS/nixpkgs/tree/master/pkgs/applications/video/streamlink
-.. _OpenBSD: https://openports.se/multimedia/streamlink
-.. _Solus: https://dev.getsol.us/source/streamlink/
-.. _Ubuntu: https://launchpad.net/~nilarimogard/+archive/ubuntu/webupd8/+packages?field.name_filter=streamlink&field.status_filter=published&field.series_filter=
+.. _NixOS: https://github.com/NixOS/nixpkgs/tree/master/pkgs/by-name/st/streamlink
+.. _openSUSE: https://build.opensuse.org/package/show/multimedia:apps/streamlink
+.. _Ubuntu: https://packages.ubuntu.com/resolute/streamlink
+.. _Solus: https://github.com/getsolus/packages/tree/main/packages/s/streamlink
 .. _Void: https://github.com/void-linux/void-packages/tree/master/srcpkgs/streamlink
 
-.. _Installing AUR packages: https://wiki.archlinux.org/index.php/Arch_User_Repository#Installing_packages
-.. _Installing Debian backported packages: https://wiki.debian.org/Backports#Using_the_command_line
+.. _Installing AUR packages: https://wiki.archlinux.org/index.php/Arch_User_Repository
+.. _Installing Debian backported packages: https://wiki.debian.org/Backports
 .. _NixOS channel: https://search.nixos.org/packages?show=streamlink&query=streamlink
 
 
-Package maintainers
--------------------
+Package availability
+--------------------
 
-.. rst-class:: table-custom-layout
+Packaging is not done by the Streamlink maintainers themselves except for
+the `PyPI package <pypi-package-and-source-code_>`_,
+the `Windows installers + portable builds <Windows binaries_>`_,
+and the `Linux AppImages`_.
 
-==================================== ===========================================
-Distribution/Platform                Maintainer
-==================================== ===========================================
-Arch                                 Giancarlo Razzolini <grazzolini at archlinux.org>
-Arch (aur, git)                      Josip Ponjavic <josipponjavic at gmail.com>
-Chocolatey                           Scott Walters <me at scowalt.com>
-Debian                               Alexis Murzeau <amubtdx at gmail.com>
-Fedora                               Mohamed El Morabity <melmorabity at fedoraproject.org>
-Gentoo                               soredake <fdsfgs at krutt.org>
-NetBSD                               Maya Rashish <maya at netbsd.org>
-NixOS                                Tuomas Tynkkynen <tuomas.tynkkynen at iki.fi>
-OpenBSD                              Brian Callahan <bcallah at openbsd.org>
-Solus                                Joey Riches <josephriches at gmail.com>
-Ubuntu                               Alin Andrei <andrew at webupd8.org>
-Void                                 Michal Vasilek <michal at vasilek.cz>
-Windows binaries                     beardypig <beardypig at protonmail.com>
-Windows port. version                beardypig <beardypig at protonmail.com>
-==================================== ===========================================
+If a packaged release of Streamlink is not available for your operating system / distro or your system's architecture,
+or if it's out of date or broken, then please contact the respective package maintainers or package-repository maintainers
+of your operating system / distro, as it's up to them to add, update, or fix those packages.
 
+Users of glibc-based Linux distros can find up-to-date Streamlink releases via the available `AppImages <Linux AppImages_>`_.
+
+Please open an issue or pull request on GitHub if an **available**, **maintained** and **up-to-date** package is missing
+from the install docs.
+
+
+.. _pypi-package-and-source-code:
 
 PyPI package and source code
 ----------------------------
 
 If a package is not available on your platform, or if it's out of date,
-Streamlink can be installed via `pip`_, the Python package manager.
-
-Before running :command:`pip`, make sure that it's the Python 3 version of `pip`_ (to check, run :command:`pip --version`).
-On some systems, this isn't the case by default and an alternative, like :command:`pip3` for example, needs to be run instead.
-
-.. note::
-
-    On some Linux distributions, the Python headers package needs to be installed before installing Streamlink
-    (``python-devel`` on RedHat, Fedora, etc.).
-
-    Ensure that you are using an up-to-date version of `pip`_. At least version **6** is required.
+then Streamlink can be installed via `pip`_, the Python package manager.
 
 .. warning::
 
-    On Linux, when not using a virtual environment, it is recommended to **install custom python packages like this
-    only for the current user** (see the ``--user`` parameter below), since system-wide packages can cause conflicts with
-    the system's regular package manager.
+    On Linux, when not using a `virtual environment`_, it is recommended to **install custom python packages like this
+    only for the current user** using the ``--user`` parameter, since system-wide packages can cause conflicts with
+    the system's regular package manager. Never install Python packages via sudo in your system's global Python environment.
 
-    Those user-packages will be installed into ``~/.local`` instead of ``/usr`` and entry-scripts for
-    running the programs can be found in ``~/.local/bin``, eg. ``~/.local/bin/streamlink``.
+    User-packages will be installed into ``~/.local`` instead of ``/usr``, and entry-scripts for
+    running the programs can be found in ``~/.local/bin``, e.g. ``~/.local/bin/streamlink``.
 
     In order for the command line shell to be able to find these executables, the user's ``PATH`` environment variable
     needs to be extended. This can be done by adding ``export PATH="${HOME}/.local/bin:${PATH}"``
     to ``~/.profile`` or ``~/.bashrc``.
 
-.. rst-class:: table-custom-layout
+.. list-table::
+    :header-rows: 1
+    :class: table-custom-layout
 
-==================================== ===========================================
-Version                              Installing
-==================================== ===========================================
-`Latest release`_                    .. code-block:: bash
+    * - Version
+      - Installing
+    * - :octicon:`verified` `Latest release`_
+      - .. code-block:: bash
 
-                                        pip install --user --upgrade streamlink
+            pip install -U streamlink
+    * - :octicon:`verified` `Master branch`_
+      - .. code-block:: bash
 
-`Master branch`_                     .. code-block:: bash
+            pip install -U git+https://github.com/streamlink/streamlink.git
+    * - :octicon:`unverified` `From a pull request <pip-install-vcs_>`_
+      - .. code-block:: bash
 
-                                        pip install --user --upgrade git+https://github.com/streamlink/streamlink.git
+            pip install -U git+https://github.com/streamlink/streamlink.git@refs/pull/PULL-REQUEST-ID/head
+    * - :octicon:`unverified` `Specific tag/branch/commit <pip-install-vcs_>`_
+      - .. code-block:: bash
 
-`Specific tag/branch or commit`_     .. code-block:: bash
-
-                                        pip install --user --upgrade git+https://github.com/USERNAME/streamlink.git@BRANCH-OR-COMMIT
-==================================== ===========================================
+            pip install -U git+https://github.com/USERNAME/streamlink.git@REVISION
 
 .. _pip: https://pip.pypa.io/en/stable/
 .. _Latest release: https://pypi.python.org/pypi/streamlink
 .. _Master branch: https://github.com/streamlink/streamlink/commits/master
-.. _Specific tag/branch or commit: https://pip.pypa.io/en/stable/reference/pip_install/#git
+.. _pip-install-vcs: https://pip.pypa.io/en/stable/topics/vcs-support/#git
+
 
 Virtual environment
-^^^^^^^^^^^^^^^^^^^
+-------------------
 
-Another method of installing Streamlink in a non-system-wide way is
-using `virtualenv`_, which creates a user owned Python environment instead.
+A better way of installing Streamlink as a non-system Python package is using the `venv`_ or `virtualenv`_ Python modules,
+which both create a user-owned Python environment which is isolated from the system's main Python environment.
+
+While `venv`_ is part of Python's standard library since ``3.3``, `virtualenv`_ is the project which `venv`_ originated from,
+but it first needs to be installed, either via `pip`_ or from the system's package manager. It also implements more features,
+so depending on your needs, you may want to use `virtualenv`_ instead of `venv`_.
+
+Install using ``venv`` and ``pip``
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 
 .. code-block:: bash
 
     # Create a new environment
-    virtualenv ~/myenv
+    python -m venv ~/myenv
 
     # Activate the environment
+    # note: non-POSIX compliant shells like FISH or PowerShell have different activation script file names
+    # note: on Windows, the `bin` subdirectory is called `Scripts`
     source ~/myenv/bin/activate
 
-    # Install Streamlink in the environment
+    # *Either* install the latest Streamlink release from PyPI in the virtual environment
     pip install --upgrade streamlink
+
+    # *Or*, install the most up-to-date development version from master on GitHub
+    pip install --upgrade git+https://github.com/streamlink/streamlink.git
 
     # Use Streamlink in the environment
     streamlink ...
@@ -262,150 +353,401 @@ using `virtualenv`_, which creates a user owned Python environment instead.
     # Use Streamlink without activating the environment
     ~/myenv/bin/streamlink ...
 
-.. note::
+Install using ``uvx``
+^^^^^^^^^^^^^^^^^^^^^
 
-    This may also be required on some macOS versions that seem to have weird
-    permission issues.
+`uv`_ is a Python package and project manager written in Rust which replaces
+``pip``, ``pip-tools``, ``pipx``, ``poetry``, ``pyenv``, ``twine``, ``virtualenv``, and more.
 
-.. _virtualenv: https://virtualenv.readthedocs.io/en/latest/
+By using its `uv tools <uv-tools_>`_ interface (or just ``uvx``), Streamlink can be installed and run in a single command.
+
+.. code-block:: bash
+
+    # *Either* install and run the latest Streamlink release from PyPI
+    uvx streamlink [streamlink-arguments...]
+
+    # *Or*, install and run the most up-to-date dev version on GitHub
+    uvx --from "git+https://github.com/streamlink/streamlink.git@master" streamlink [streamlink-arguments...]
+
+    # *Or*, from a pull request on GitHub
+    uvx --from "git+https://github.com/streamlink/streamlink.git@refs/pull/PULL-REQUEST-ID/head" streamlink [streamlink-arguments...]
+
+.. _venv: https://docs.python.org/3/library/venv.html
+.. _virtualenv: https://virtualenv.pypa.io/en/stable/
+.. _uv: https://docs.astral.sh/uv/
+.. _uv-tools: https://docs.astral.sh/uv/guides/tools/
+
+
+Source distribution
+-------------------
+
+In addition to the pre-built wheels uploaded to PyPI, Streamlink's source distribution tarballs get uploaded
+to both PyPI and GitHub releases. These tarballs are meant for packagers and are signed using the following PGP key:
+
+:bdg-link-primary-line:`44448A298D5C3618 <https://keyserver.ubuntu.com/pks/lookup?search=44448A298D5C3618&fingerprint=on&op=index>`
+
+Please be aware that PyPI has dropped support for uploading new release file signatures in May 2023, so those can only be found
+on `GitHub releases`_ now.
+
+See the `Dependencies`_ section down below for the required build- and runtime-requirements.
+
+.. warning::
+
+    Please avoid building Streamlink from tarballs generated by GitHub from (tagged) git commits,
+    as they are lacking the built-in release version string. The ``versioningit`` build-requirement also won't be able
+    to find the correct version, as the content is not part of a git repository.
+
+    Instead, build from Streamlink's signed source-distribution tarballs which are uploaded to PyPI and GitHub releases,
+    or from the cloned git repository.
+
+.. _GitHub Releases: https://github.com/streamlink/streamlink/releases
 
 Dependencies
 ^^^^^^^^^^^^
 
-To install Streamlink from source you will need these dependencies.
+To install Streamlink from source, you will need these dependencies.
 
-.. rst-class:: table-custom-layout
+Since :ref:`4.0.0 <changelog:streamlink 4.0.0 (2022-05-01)>`,
+Streamlink defines a `build system <pyproject.toml_>`__ according to `PEP-517`_ / `PEP-518`_.
 
-==================================== ===========================================
-Name                                 Notes
-==================================== ===========================================
-`Python`_                            At least version **3.6**.
-`python-setuptools`_                 At least version **42.0.0**.
+.. list-table::
+    :header-rows: 1
+    :class: table-custom-layout table-custom-layout-dependencies
 
-**Automatically installed by the setup script**
---------------------------------------------------------------------------------
-`isodate`_                           Used for parsing ISO8601 strings
-`lxml`_                              Used for processing HTML and XML data
-`pycountry`_                         Used for localization settings, provides country and language data
-`pycryptodome`_                      Used for decrypting encrypted streams
-`PySocks`_                           Used for SOCKS Proxies
-`requests`_                          Used for making any kind of HTTP/HTTPS request
-`websocket-client`_                  Used for making websocket connections
+    * - Type
+      - Name
+      - Notes
+    * - python
+      - `Python`_
+      - At least version **3.10**
+    * - build
+      - `setuptools`_
+      - At least version **65.6.0** |br|
+        Used as build backend
+    * - build
+      - `versioningit`_
+      - At least version **2.0.0** |br|
+        Used for generating the version string from git when building, or when running in an editable install.
+        Not needed when building wheels and installing from the source distribution.
+    * - runtime
+      - `certifi`_
+      - Used for loading the CA bundle extracted from the Mozilla Included CA Certificate List
+    * - runtime
+      - `exceptiongroup`_
+      - | Only required on ``python_version<"3.11"``
+        | Used for ``ExceptionGroup`` handling on older Python versions
+    * - runtime
+      - `isodate`_
+      - Used for parsing ISO8601 strings
+    * - runtime
+      - `lxml`_
+      - Used for processing HTML and XML data
+    * - runtime
+      - `pycountry`_
+      - Used for localization settings, provides country and language data
+    * - runtime
+      - `pycryptodome`_
+      - Used for decrypting encrypted streams
+    * - runtime
+      - `PySocks`_
+      - Used for SOCKS Proxies
+    * - runtime
+      - `requests`_
+      - Used for making any kind of HTTP/HTTPS request
+    * - runtime
+      - `trio`_
+      - Used for async concurrency and I/O in some parts of Streamlink
+    * - runtime
+      - `trio-websocket`_
+      - Used for WebSocket connections on top of the async trio framework
+    * - runtime
+      - `typing-extensions`_
+      - | Only required on ``python_version<"3.11"``
+        | Used for :pep:`681` on older Python versions
+    * - runtime
+      - `urllib3`_
+      - Used internally by `requests`_, defined as direct dependency
+    * - runtime
+      - `websocket-client`_
+      - Used for making websocket connections
+    * - optional
+      - `FFmpeg`_
+      - Required for `muxing`_ multiple video/audio/subtitle streams into a single output stream.
 
-**Optional**
---------------------------------------------------------------------------------
-`ffmpeg`_                            Required for `muxing`_ multiple video/audio/subtitle streams into a single output stream.
+        - DASH streams with video and audio content always have to get remuxed.
+        - HLS streams optionally need to get remuxed depending on the stream selection.
+    * - optional
+      - | `brotli`_
+        | ``streamlink[decompress]``
+        | via ``urllib3[brotli]``
+      - Used for decompressing HTTP responses
+    * - optional
+      - | `backports.zstd`_
+        | ``streamlink[decompress]``
+        | via ``urllib3[zstd]``
+      - | Only required on ``python_version<"3.14"``
+        | Used for decompressing HTTP responses
 
-                                     - DASH streams with video and audio content always have to get remuxed.
-                                     - HLS streams optionally need to get remuxed depending on the stream selection.
-==================================== ===========================================
+.. _pyproject.toml: https://github.com/streamlink/streamlink/blob/master/pyproject.toml
+.. _PEP-517: https://peps.python.org/pep-0517/
+.. _PEP-518: https://peps.python.org/pep-0518/
 
 .. _Python: https://www.python.org/
-.. _python-setuptools: https://setuptools.pypa.io/en/latest/
+.. _setuptools: https://setuptools.pypa.io/en/latest/
+.. _versioningit: https://versioningit.readthedocs.io/en/stable/
 
+.. _certifi: https://certifiio.readthedocs.io/en/latest/
+.. _exceptiongroup: https://github.com/agronholm/exceptiongroup
 .. _isodate: https://pypi.org/project/isodate/
 .. _lxml: https://lxml.de/
 .. _pycountry: https://pypi.org/project/pycountry/
 .. _pycryptodome: https://pycryptodome.readthedocs.io/en/latest/
 .. _PySocks: https://github.com/Anorov/PySocks
-.. _requests: https://docs.python-requests.org/en/master/
+.. _requests: https://requests.readthedocs.io/en/latest/
+.. _trio: https://trio.readthedocs.io/en/stable/
+.. _trio-websocket: https://trio-websocket.readthedocs.io/en/stable/
+.. _typing-extensions: https://typing-extensions.readthedocs.io/
+.. _urllib3: https://urllib3.readthedocs.io/en/stable/
 .. _websocket-client: https://pypi.org/project/websocket-client/
 
-.. _ffmpeg: https://www.ffmpeg.org/
+.. _brotli: https://pypi.org/project/Brotli/
+.. _backports.zstd: https://pypi.org/project/backports.zstd/
+
+.. _FFmpeg: https://www.ffmpeg.org/
 .. _muxing: https://en.wikipedia.org/wiki/Multiplexing#Video_processing
 
 
 Windows binaries
 ----------------
 
-.. rst-class:: table-custom-layout
+.. grid:: 2
+    :padding: 0
+    :class-container: grid-with-icons
 
-==================================== ====================================
-Release                              Notes
-==================================== ====================================
-`Stable release`_                    Download the installer from the `GitHub releases page`_.
+    .. grid-item-card::
+        :padding: 3
+        :link: https://github.com/streamlink/windows-builds/releases
+        :link-alt: Windows stable releases
+        :text-align: center
 
-`Development build`_                 For testing purposes only! Built each day at midnight (UTC). |br|
-                                     Download the zipped installer from the `build artifacts`_ section of one of
-                                     the recent scheduled builds. Build artifacts are stored by Github for 90 days. |br|
-                                     See the `commit log`_ for a list of changes since the last stable release.
-==================================== ====================================
+        **Windows stable releases**
+        ^^^
+        :fas:`download;fa-2x` GitHub releases page
 
-.. warning::
+        :fas:`check-circle;sd-text-success fa-lg` The most recent Streamlink release
 
-    **The Streamlink installer for Windows is currently based on Python 3.9.** |br|
-    Versions of Windows prior to 10 are **not** supported.
+    .. grid-item-card::
+        :padding: 3
+        :link: https://github.com/streamlink/windows-builds/actions/workflows/preview-build.yml
+        :link-alt: Windows preview builds
+        :text-align: center
 
-    Be aware that the packages for `Chocolatey`_ and the `Windows Package Manager`_ are just wrappers
-    around the stable installer and thus depend on Windows 10+ as well.
+        **Windows preview builds**
+        ^^^
+        :fas:`download;fa-2x` GitHub actions build artifacts
 
-    Alternatively, :ref:`Streamlink can be installed via python-pip <install:PyPI package and source code>`
-    in a :ref:`compatible Python environment <install:Dependencies>`.
+        :fab:`github;fa-lg` Account required
 
-.. _Stable release:
-.. _GitHub releases page: https://github.com/streamlink/streamlink/releases/latest
-.. _Development build:
-.. _build artifacts: https://github.com/streamlink/streamlink/actions?query=event%3Aschedule+is%3Asuccess+branch%3Amaster
-.. _commit log: https://github.com/streamlink/streamlink/commits/master
+**Flavors**
 
-These installers contain:
+.. grid:: 2
+    :padding: 0
+    :class-container: grid-with-icons
 
-- A compiled version of Streamlink that **does not require an existing Python installation**
-- `ffmpeg`_ for muxing streams
+    .. grid-item-card::
+        :padding: 3
+        :class-header: sd-text-center
+        :class-body: sd-py-0
+        :class-footer: sd-text-center sd-bg-transparent sd-border-0 sd-pt-0 sd-pb-3
 
-and perform the following tasks:
+        :fas:`gears` **Installer**
+        ^^^
 
-- Add Streamlink to the system's list of installed applications. |br|
-  An uninstaller will automatically be created during installation.
-- Add Streamlink's installation directory to the system's ``PATH`` environment variable. |br|
-  This allows the user to run the ``streamlink`` command globally
-  from the command prompt or powershell without specifying its directory.
+        - Windows 10+
+        - Adds itself to the system's ``PATH`` env var
+        - Automatically creates a :ref:`config file <cli/config:Configuration file>`
+        - Sets :option:`--ffmpeg-ffmpeg` in config file
 
-To build the installer on your own, ``NSIS`` and ``pynsist`` need to be installed.
+        +++
+        :bdg-link-success-line:`x86_64 <https://github.com/streamlink/windows-builds/releases>`
+
+    .. grid-item-card::
+        :padding: 3
+        :class-header: sd-text-center
+        :class-body: sd-py-0
+        :class-footer: sd-text-center sd-bg-transparent sd-border-0 sd-pt-0 sd-pb-3
+
+        :fas:`file-zipper` **Portable archive**
+        ^^^
+
+        - Windows 10+
+        - No :ref:`config file <cli/config:Configuration file>` created automatically
+        - :option:`--ffmpeg-ffmpeg` must be set manually
+        - No pre-compiled Python bytecode
+
+        +++
+        :bdg-link-success-line:`x86_64 <https://github.com/streamlink/windows-builds/releases>`
+
+**Contents**
+
+.. grid:: 3
+    :padding: 0
+    :class-container: grid-with-images
+
+    .. grid-item-card::
+        :padding: 3
+        :link: https://github.com/streamlink/python-windows-embed
+        :link-alt: Embedded Python build
+        :text-align: center
+
+        .. image:: _static/icon-python.svg
+            :alt: Python
+
+        Python |br| :sub:`embedded build`
+
+    .. grid-item-card::
+        :padding: 3
+        :link: https://github.com/streamlink/streamlink
+        :link-alt: Streamlink and its runtime dependencies
+        :text-align: center
+
+        .. image:: _static/icon.svg
+            :alt: Streamlink
+
+        Streamlink |br| :sub:`and dependencies`
+
+    .. grid-item-card::
+        :padding: 3
+        :link: https://github.com/streamlink/FFmpeg-Builds
+        :link-alt: FFmpeg, required for muxing streams
+        :text-align: center
+
+        .. image:: _static/icon-ffmpeg.svg
+            :alt: FFmpeg
+
+        FFmpeg |br| :sub:`for muxing streams`
 
 
-Windows portable version
-^^^^^^^^^^^^^^^^^^^^^^^^
+Linux AppImages
+---------------
 
-.. rst-class:: table-custom-layout
+.. grid:: 2
+    :padding: 0
+    :class-container: grid-with-icons
 
-==================================== ===========================================
-Maintainer                           Links
-==================================== ===========================================
-Beardypig                            `Latest precompiled stable release`__ |br|
-                                     `Latest builder`__ |br|
-                                     `More info`__
-==================================== ===========================================
+    .. grid-item-card::
+        :padding: 3
+        :link: https://github.com/streamlink/streamlink-appimage/releases
+        :link-alt: AppImage stable releases
+        :text-align: center
 
-__ https://github.com/beardypig/streamlink-portable/releases/latest
-__ https://github.com/beardypig/streamlink-portable/archive/master.zip
-__ https://github.com/beardypig/streamlink-portable
+        **AppImage stable releases**
+        ^^^
+        :fas:`download;fa-2x` GitHub releases page
 
+        :fas:`check-circle;sd-text-success fa-lg` The most recent Streamlink release
 
-AppImages
----------
+    .. grid-item-card::
+        :padding: 3
+        :link: https://github.com/streamlink/streamlink-appimage/actions/workflows/preview-build.yml
+        :link-alt: AppImage preview builds
+        :text-align: center
 
-Download & Setup
-^^^^^^^^^^^^^^^^
+        **AppImage preview builds**
+        ^^^
+        :fas:`download;fa-2x` GitHub actions build artifacts
 
-First, download the latest `Streamlink AppImage`_ which matches your system's
-architecture from the `Streamlink AppImage releases page`_. Then simply set the
-executable flag and run the app.
+        :fab:`github;fa-lg` Account required
 
-.. code-block:: bash
+**Architectures**
 
-   # Set the executable flag. Note that all AppImage release file names include
-   # the release version, Python version, platform name and CPU architecture
-   chmod +x streamlink-2.0.0-1-cp39-cp39-manylinux2014_x86_64.AppImage
+.. grid:: 2
+    :padding: 0
 
-   # Run the Streamlink AppImage with any parameter supported by Streamlink
-   ./streamlink-2.0.0-1-cp39-cp39-manylinux2014_x86_64.AppImage --version
+    .. grid-item-card::
+        :padding: 3
+        :text-align: center
+
+        :bdg-link-success-line:`x86_64 <https://github.com/streamlink/streamlink-appimage/releases>`
+
+    .. grid-item-card::
+        :padding: 3
+        :text-align: center
+
+        :bdg-link-success-line:`aarch64 <https://github.com/streamlink/streamlink-appimage/releases>`
+
+**Contents**
+
+.. grid:: 3
+    :padding: 0
+    :class-container: grid-with-images
+
+    .. grid-item-card::
+        :padding: 3
+        :link: https://github.com/streamlink/appimage-buildenv
+        :link-alt: Python from the pypa/manulinux docker images
+        :text-align: center
+
+        .. image:: _static/icon-python.svg
+            :alt: Python
+
+        Python |br| :sub:`from the pypa/manylinux docker images`
+
+    .. grid-item-card::
+        :padding: 3
+        :link: https://github.com/streamlink/streamlink
+        :link-alt: Streamlink and its runtime dependencies
+        :text-align: center
+
+        .. image:: _static/icon.svg
+            :alt: Streamlink
+
+        Streamlink |br| :sub:`and dependencies`
+
+    .. grid-item-card::
+        :padding: 3
+        :link: https://github.com/streamlink/FFmpeg-Builds
+        :link-alt: FFmpeg, required for muxing streams
+        :text-align: center
+
+        .. image:: _static/icon-ffmpeg.svg
+            :alt: FFmpeg
+
+        FFmpeg |br| :sub:`for muxing streams` |br| :sub:`(optional)`
+
+**How-To**
+
+1. Verify that the system is running on at least
+   `glibc <glibc-wikipedia_>`_ `2.28 (Aug 2018) <glibc-release-distro-mapping_>`_ (see :command:`ld.so --version`)
+
+2. Download the AppImage file matching the system's CPU architecture (see :command:`uname --machine`)
+
+3. Set the executable flag via a file browser or :command:`chmod +x filename` from a command-line shell
+
+   .. code-block:: bash
+
+      # AppImage file names include the release version,
+      # the Python version, platform name and CPU architecture
+      chmod +x streamlink-7.0.0-1-cp312-cp312-manylinux_2_28_x86_64.AppImage
+
+4. Run the AppImage with any command-line parameters supported by Streamlink
+
+   .. code-block:: bash
+
+      ./streamlink-7.0.0-1-cp312-cp312-manylinux_2_28_x86_64.AppImage --loglevel=debug
+
+.. _glibc-wikipedia: https://en.wikipedia.org/wiki/Glibc
+.. _glibc-release-distro-mapping: https://sourceware.org/glibc/wiki/Release#Distribution_Branch_Mapping
+
 
 What are AppImages?
 ^^^^^^^^^^^^^^^^^^^
 
-AppImages are portable apps for Linux which are independent of the distro and
-package management.
+AppImages are portable applications which are independent of the Linux distribution in use and its package management.
+Just set the executable flag on the AppImage file and run it.
+
+The only requirement is having `FUSE`_ installed for being able to mount the contents of the AppImage's SquashFS,
+which is done automatically. Also, only glibc-based systems are currently supported.
 
 Note: Check out `AppImageLauncher`_, which automates the setup and system
 integration of AppImages. AppImageLauncher may also be available via your
@@ -415,8 +757,8 @@ Additional information, like for example how to inspect the AppImage contents or
 how to extract the contents if `FUSE`_ is not available on your system, can be
 found in the `AppImage documentation`_.
 
-.. _Streamlink AppImage: https://github.com/streamlink/streamlink-appimage
-.. _Streamlink AppImage releases page: https://github.com/streamlink/streamlink-appimage/releases
 .. _AppImageLauncher: https://github.com/TheAssassin/AppImageLauncher
 .. _FUSE: https://docs.appimage.org/user-guide/troubleshooting/fuse.html
 .. _AppImage documentation: https://docs.appimage.org/user-guide/run-appimages.html
+
+.. _streamlink-master: https://github.com/streamlink/streamlink/commits/master

@@ -1,31 +1,43 @@
-import logging
+"""
+$description Live TV channels from DR, a Danish public, state-owned broadcaster.
+$url dr.dk
+$type live
+$region Denmark
+"""
+
 import re
 
+from streamlink.logger import getLogger
 from streamlink.plugin import Plugin, pluginmatcher
 from streamlink.plugin.api import validate
 from streamlink.stream.hls import HLSStream
 
-log = logging.getLogger(__name__)
+
+log = getLogger(__name__)
 
 
-@pluginmatcher(re.compile(
-    r"https?://(?:www\.)?dr\.dk/drtv(/kanal/[\w-]+)"
-))
+@pluginmatcher(
+    re.compile(r"https?://(?:www\.)?dr\.dk/drtv(/kanal/[\w-]+)"),
+)
 class DRDK(Plugin):
-    live_api_url = 'https://www.dr-massive.com/api/page'
+    live_api_url = "https://www.dr-massive.com/api/page"
 
     _live_data_schema = validate.Schema(
-        {'item': {'customFields': {
-            validate.optional('hlsURL'): validate.url(),
-            validate.optional('hlsWithSubtitlesURL'): validate.url(),
-        }}},
-        validate.get('item'),
-        validate.get('customFields'),
+        {
+            "item": {
+                "customFields": {
+                    validate.optional("hlsURL"): validate.url(),
+                    validate.optional("hlsWithSubtitlesURL"): validate.url(),
+                },
+            },
+        },
+        validate.get("item"),
+        validate.get("customFields"),
     )
 
     def _get_live(self, path):
         params = dict(
-            ff='idp',
+            ff="idp",
             path=path,
         )
         res = self.session.http.get(self.live_api_url, params=params)
@@ -33,21 +45,23 @@ class DRDK(Plugin):
 
         streams = {}
         for name, url in playlists.items():
-            name_prefix = ''
-            if name == 'hlsWithSubtitlesURL':
-                name_prefix = 'subtitled_'
+            name_prefix = ""
+            if name == "hlsWithSubtitlesURL":
+                name_prefix = "subtitled_"
 
-            streams.update(HLSStream.parse_variant_playlist(
-                self.session,
-                url,
-                name_prefix=name_prefix,
-            ))
+            streams.update(
+                HLSStream.parse_variant_playlist(
+                    self.session,
+                    url,
+                    name_prefix=name_prefix,
+                ),
+            )
 
         return streams
 
     def _get_streams(self):
         path = self.match.group(1)
-        log.debug("Path={0}".format(path))
+        log.debug(f"Path={path}")
 
         return self._get_live(path)
 

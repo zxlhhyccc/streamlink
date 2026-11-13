@@ -1,9 +1,0 @@
-pip>=9
-pytest
-pytest-cov
-coverage
-requests-mock
-freezegun>=1.0.0
-flake8
-flake8-import-order
-shtab

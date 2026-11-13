@@ -1,139 +1,125 @@
-import logging
+"""
+$description Global live-streaming and video hosting social platform owned by Meta Platforms, Inc.
+$url facebook.com
+$type live, vod
+$metadata id
+$metadata author
+$metadata title
+"""
+
 import re
-from html import unescape as html_unescape
-from urllib.parse import unquote_plus, urlencode
+from urllib.parse import parse_qsl, urlparse
 
 from streamlink.plugin import Plugin, pluginmatcher
-from streamlink.plugin.api.utils import itertags
+from streamlink.plugin.api import validate
 from streamlink.stream.dash import DASHStream
 from streamlink.stream.http import HTTPStream
-from streamlink.utils.parse import parse_json
+from streamlink.utils.data import search_dict
+from streamlink.utils.num import to_float
 
-log = logging.getLogger(__name__)
 
-
-@pluginmatcher(re.compile(r"""
-    https?://(?:www\.)?facebook
-    (?:\.com|wkhpilnemxj7asaniu7vnjjbiltxjqhye3mhbshg7kx5tfyd\.onion)
-    /[^/]+/(?:posts|videos)/(?P<video_id>\d+)
-""", re.VERBOSE))
+@pluginmatcher(
+    name="default",
+    pattern=re.compile(
+        r"https?://(?:www\.)?facebook\.com/(?:(?P<user>[^/]+)/)?(?:videos?|reel?)/?(?:[^/]+/)?(?P<video_id>\d+)",
+    ),
+)
+@pluginmatcher(
+    name="search",
+    pattern=re.compile(r"https?://(?:www\.)?facebook\.com/watch/(?:live/)?\?ref=watch_permalink&v=(?P<video_id>\d+)"),
+)
+@pluginmatcher(
+    name="share",
+    pattern=re.compile(r"https?://(?:www\.)?facebook\.com/share/[vr]/(?P<share_id>[^/]+)"),
+)
 class Facebook(Plugin):
-    _src_re = re.compile(r'''(sd|hd)_src["']?\s*:\s*(?P<quote>["'])(?P<url>.+?)(?P=quote)''')
-    _dash_manifest_re = re.compile(r'''dash_manifest["']?\s*:\s*["'](?P<manifest>.+?)["'],''')
-    _playlist_re = re.compile(r'''video:\[({url:".+?}\])''')
-    _plurl_re = re.compile(r'''url:"(.*?)"''')
-    _pc_re = re.compile(r'''pkg_cohort["']\s*:\s*["'](.+?)["']''')
-    _rev_re = re.compile(r'''client_revision["']\s*:\s*(\d+),''')
-    _dtsg_re = re.compile(r'''DTSGInitialData["'],\s*\[\],\s*{\s*["']token["']\s*:\s*["'](.+?)["']''')
-    _title_re = re.compile(r'<meta property="og:title" content="([^\"]+)"')
-    _DEFAULT_PC = "PHASED:DEFAULT"
-    _DEFAULT_REV = 4681796
-    _TAHOE_URL = "https://www.facebook.com/video/tahoe/async/{0}/?chain=true&isvideo=true&payloadtype=primary"
+    _HEADERS = {
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Sec-Fetch-Site": "none",
+    }
 
-    def get_title(self):
-        res = self.session.http.get(self.url)
-        m = self._title_re.search(res.text)
-        if m:
-            return html_unescape(m.group(1))
-
-    def _parse_streams(self, res):
-        _found_stream_url = False
-        for meta in itertags(res.text, "meta"):
-            if meta.attributes.get("property") == "og:video:url":
-                stream_url = html_unescape(meta.attributes.get("content"))
-                if ".mpd" in stream_url:
-                    for s in DASHStream.parse_manifest(self.session, stream_url).items():
-                        yield s
-                        _found_stream_url = True
-                elif ".mp4" in stream_url:
-                    yield "vod", HTTPStream(self.session, stream_url)
-                    _found_stream_url = True
-                break
-        else:
-            log.debug("No meta og:video:url")
-
-        if _found_stream_url:
-            return
-
-        for match in self._src_re.finditer(res.text):
-            stream_url = match.group("url")
-            if "\\/" in stream_url:
-                # if the URL is json encoded, decode it
-                stream_url = parse_json("\"{}\"".format(stream_url))
-            if ".mpd" in stream_url:
-                yield from DASHStream.parse_manifest(self.session, stream_url).items()
-            elif ".mp4" in stream_url:
-                yield match.group(1), HTTPStream(self.session, stream_url)
-            else:
-                log.debug("Non-dash/mp4 stream: {0}".format(stream_url))
-
-        match = self._dash_manifest_re.search(res.text)
-        if match:
-            # facebook replaces "<" characters with the substring "\\x3C"
-            manifest = match.group("manifest").replace("\\/", "/")
-            manifest = bytes(unquote_plus(manifest), "utf-8").decode("unicode_escape")
-            # Ignore unsupported manifests until DASH SegmentBase support is implemented
-            if "SegmentBase" in manifest:
-                log.error("Skipped DASH manifest with SegmentBase streams")
-            else:
-                yield from DASHStream.parse_manifest(self.session, manifest).items()
+    _SCHEMA_CONTENT = validate.Schema(
+        validate.parse_html(),
+        validate.union((
+            validate.all(
+                validate.xml_xpath_string(".//meta[@name='description'][1]/@content"),
+                validate.none_or_all(
+                    validate.transform(lambda x: x.split("\n")[0]),
+                ),
+            ),
+            validate.any(
+                *[
+                    validate.all(
+                        validate.xml_xpath_string(
+                            ".//script[@type='application/json'][contains(text(),$key)][1]/text()",
+                            key=f'"{key}"',
+                        ),
+                        validate.none_or_all(
+                            validate.parse_json(),
+                            validate.transform(lambda d, k: next(search_dict(d, k), None), key),
+                            {validate.optional("name"): str},
+                            validate.get("name"),
+                        ),
+                    )
+                    for key in (
+                        "owner_as_page",
+                        "video_owner",
+                        "author",
+                    )
+                ],
+                validate.transform(lambda _: None),
+            ),
+            *[
+                validate.all(
+                    validate.xml_xpath_string(
+                        ".//script[@type='application/json'][contains(text(),$key)][1]/text()",
+                        key=f'"{key}"',
+                    ),
+                    validate.none_or_all(
+                        validate.parse_json(),
+                        validate.transform(lambda d, k: next(search_dict(d, k), None), key),
+                    ),
+                )
+                for key in (
+                    "dash_manifest_url",
+                    "browser_native_sd_url",
+                    "browser_native_hd_url",
+                )
+            ],
+        )),
+    )
 
     def _get_streams(self):
-        self.session.set_option("ffmpeg-start-at-zero", True)
-        self.session.http.headers.update({"Accept-Language": "en-US"})
+        if self.matches["share"]:
+            self.id = self.match.group("share_id")
+        else:
+            match = self.match.groupdict()
+            self.id = self.match.group("video_id")
+            self.url = f"https://www.facebook.com/{match.get('user') or '_'}/videos/{self.id}"
 
-        done = False
-        res = self.session.http.get(self.url)
-        log.trace(f"{res.url}")
-        for title in itertags(res.text, "title"):
-            if title.text.startswith("Log into Facebook"):
-                log.error("Video is not available, You must log in to continue.")
-                return
-
-        for s in self._parse_streams(res):
-            done = True
-            yield s
-        if done:
-            return
-
-        # fallback on to playlist
-        log.debug("Falling back to playlist regex")
-        match = self._playlist_re.search(res.text)
-        playlist = match and match.group(1)
-        if playlist:
-            match = self._plurl_re.search(playlist)
-            if match:
-                url = match.group(1)
-                yield "sd", HTTPStream(self.session, url)
-                return
-
-        # fallback to tahoe player url
-        log.debug("Falling back to tahoe player")
-        video_id = self.match.group("video_id")
-        url = self._TAHOE_URL.format(video_id)
-        data = {
-            "__a": 1,
-            "__pc": self._DEFAULT_PC,
-            "__rev": self._DEFAULT_REV,
-            "fb_dtsg": "",
-        }
-        match = self._pc_re.search(res.text)
-        if match:
-            data["__pc"] = match.group(1)
-        match = self._rev_re.search(res.text)
-        if match:
-            data["__rev"] = match.group(1)
-        match = self._dtsg_re.search(res.text)
-        if match:
-            data["fb_dtsg"] = match.group(1)
-        res = self.session.http.post(
-            url,
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
-            data=urlencode(data).encode("ascii")
+        self.title, self.author, *url_data = self.session.http.get(
+            self.url,
+            headers=self._HEADERS,
+            schema=self._SCHEMA_CONTENT,
         )
 
-        for s in self._parse_streams(res):
-            yield s
+        if not self.author and self.matches["default"] and re.match(r"\D", (user := self.match.group("user"))) and user != "_":
+            self.author = user
+
+        for url in url_data:
+            if not url:
+                continue
+            parsed_url = urlparse(url)
+
+            if parsed_url.path.endswith(".mpd") and "dummy" not in parsed_url.query:
+                yield from DASHStream.parse_manifest(self.session, url).items()
+                break
+
+            if parsed_url.path.endswith(".mp4"):
+                bitrate = dict(parse_qsl(parsed_url.query)).get("bitrate")
+                if not bitrate or not (parsed_bitrate := to_float(bitrate)):
+                    continue
+                yield f"{parsed_bitrate / 1000:.0f}k", HTTPStream(self.session, url)
 
 
 __plugin__ = Facebook

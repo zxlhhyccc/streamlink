@@ -1,4 +1,5 @@
 import io
+from contextlib import suppress
 from threading import Thread
 
 from streamlink.buffers import Buffer, RingBuffer
@@ -51,7 +52,7 @@ class StreamIOThreadWrapper(io.IOBase):
 
     class Filler(Thread):
         def __init__(self, fd, buffer):
-            Thread.__init__(self)
+            super().__init__()
 
             self.error = None
             self.fd = fd
@@ -81,10 +82,8 @@ class StreamIOThreadWrapper(io.IOBase):
             self.buffer.close()
 
             if hasattr(self.fd, "close"):
-                try:
+                with suppress(Exception):
                     self.fd.close()
-                except Exception:
-                    pass
 
     def __init__(self, session, fd, timeout=30):
         self.buffer = RingBuffer(session.get_option("ringbuffer-size"))
@@ -98,8 +97,7 @@ class StreamIOThreadWrapper(io.IOBase):
         if self.filler.error and self.buffer.length == 0:
             raise self.filler.error
 
-        return self.buffer.read(size, block=self.filler.is_alive(),
-                                timeout=self.timeout)
+        return self.buffer.read(size, block=self.filler.is_alive(), timeout=self.timeout)
 
     def close(self):
         self.filler.stop()

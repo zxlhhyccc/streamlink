@@ -5,15 +5,15 @@ from tests.plugins import PluginCanHandleUrl
 class TestPluginCanHandleUrlVimeo(PluginCanHandleUrl):
     __plugin__ = Vimeo
 
-    should_match = [
-        "https://vimeo.com/237163735",
-        "https://vimeo.com/channels/music/176894130",
-        "https://vimeo.com/album/3706071/video/148903960",
-        "https://vimeo.com/ondemand/surveyopenspace/92630739",
-        "https://vimeo.com/ondemand/100footsurfingdays",
-        "https://player.vimeo.com/video/176894130",
+    should_match_groups = [
+        (("default", "https://vimeo.com/491302685"), {}),
+        (("default", "https://vimeo.com/channels/music/176894130"), {}),
+        (("default", "https://vimeo.com/ondemand/worldoftomorrow3/467204924"), {}),
+        (("player", "https://player.vimeo.com/video/176894130"), {}),
+        (("event", "https://vimeo.com/event/6149301"), {"event_id": "6149301"}),
+        (("event", "https://vimeo.com/event/6149301/embed"), {"event_id": "6149301"}),
     ]
 
     should_not_match = [
-        "https://www.vimeo.com/"
+        "https://www.vimeo.com/",
     ]
